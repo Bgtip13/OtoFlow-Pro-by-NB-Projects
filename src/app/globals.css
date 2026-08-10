@@ -4,3 +4,13 @@ body {
   background: #f1f5f9;
   color: #0f172a;
 }
+/* Hilangkan panah naik/turun pada input angka */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
