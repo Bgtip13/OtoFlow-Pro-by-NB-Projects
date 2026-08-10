@@ -71,7 +71,7 @@ export default function ServisBaruPage() {
         if (inv) {
           setLoadedNo(inv.no_nota);
           setNoNota(inv.no_nota);
-          setHeaderDiskon(String(inv.diskon || ""));
+          setHeaderDiskon(String(inv.subtotal > 0 ? ((inv.diskon || 0) / inv.subtotal) * 100 : 0));
           setNote(inv.note || "");
           if (inv.mechanic_id) setMechanicId(inv.mechanic_id);
           if (inv.customer_id) {
@@ -98,7 +98,7 @@ export default function ServisBaruPage() {
                 nama: d.item_name,
                 qty: d.qty,
                 harga: d.harga_satuan,
-                diskon: d.diskon,
+                diskon: d.harga_satuan * d.qty > 0 ? (d.diskon / (d.harga_satuan * d.qty)) * 100 : 0,
                 hpp: d.hpp_tercatat,
                 komisi: d.komisi,
                 stok: itemMap.get(d.item_id)?.stok ?? 0,
@@ -188,8 +188,9 @@ export default function ServisBaruPage() {
   }
 
   const subtotal = cart.reduce((s, l) => s + l.harga * l.qty, 0);
-  const itemDiskon = cart.reduce((s, l) => s + l.diskon * l.qty, 0);
-  const totalDiskon = itemDiskon + (Number(headerDiskon) || 0);
+  const itemDiskon = cart.reduce((s, l) => s + l.harga * l.qty * (l.diskon / 100), 0);
+  const headerDiskonRp = subtotal * ((Number(headerDiskon) || 0) / 100);
+  const totalDiskon = itemDiskon + headerDiskonRp;
   const total = subtotal - totalDiskon;
   const komisiTotal = cart.reduce((s, l) => s + l.komisi * l.qty, 0);
 
@@ -258,7 +259,7 @@ export default function ServisBaruPage() {
             mechanic_id: mechanicId,
             mechanic_name: mek?.nama ?? "",
             subtotal,
-            diskon: Number(headerDiskon) || 0,
+            diskon: headerDiskonRp,
             total,
             komisi_total: komisiTotal,
             note,
@@ -281,7 +282,7 @@ export default function ServisBaruPage() {
             mechanic_name: mek?.nama ?? "",
             status: "pengerjaan",
             subtotal,
-            diskon: Number(headerDiskon) || 0,
+            diskon: headerDiskonRp,
             total,
             komisi_total: komisiTotal,
             note,
@@ -305,8 +306,8 @@ export default function ServisBaruPage() {
           qty: l.qty,
           harga_satuan: l.harga,
           hpp_tercatat: l.hpp,
-          diskon: l.diskon,
-          subtotal: l.harga * l.qty - l.diskon * l.qty,
+          diskon: l.harga * l.qty * (l.diskon / 100),
+          subtotal: l.harga * l.qty * (1 - l.diskon / 100),
           komisi: l.komisi,
         });
 
@@ -522,7 +523,7 @@ export default function ServisBaruPage() {
                       <th className="px-2 py-1.5">Item</th>
                       <th className="px-2 py-1.5 w-16">Qty</th>
                       <th className="px-2 py-1.5 w-24">Harga</th>
-                      <th className="px-2 py-1.5 w-20">Diskon</th>
+                      <th className="px-2 py-1.5 w-20">Diskon %</th>
                       <th className="px-2 py-1.5 text-right">Subtotal</th>
                       <th className="px-2 py-1.5"></th>
                     </tr>
@@ -552,7 +553,7 @@ export default function ServisBaruPage() {
                             className="w-full rounded border border-slate-300 px-1.5 py-1 text-right focus:border-blue-500 focus:outline-none" />
                         </td>
                         <td className="px-2 py-1.5 text-right font-semibold">
-                          {formatRupiah(l.harga * l.qty - l.diskon * l.qty)}
+                          {formatRupiah(l.harga * l.qty * (1 - l.diskon / 100))}
                         </td>
                         <td className="px-2 py-1.5 text-right">
                           <button onClick={() => removeLine(l.key)} className="text-red-600 hover:underline">✕</button>
@@ -572,7 +573,7 @@ export default function ServisBaruPage() {
             <h2 className="text-sm font-bold text-slate-700">Ringkasan</h2>
             <div className="mt-3 space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Diskon Nota (Rp)</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Diskon Nota (%)</label>
                 <input type="number" value={headerDiskon} onChange={(e) => setHeaderDiskon(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
