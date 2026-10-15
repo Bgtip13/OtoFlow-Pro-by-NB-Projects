@@ -5,7 +5,21 @@ import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, formatDate, todayISO } from "@/lib/format";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
-import { Check, CreditCard } from "lucide-react";
+import { FilterBar, SelectFilter } from "@/components/filter-bar";
+import {
+  Badge,
+  Button,
+  DataTable,
+  Field,
+  Input,
+  PageModal,
+  Pagination,
+  RowAction,
+  RowActions,
+  StatCard,
+  type TableColumn,
+} from "@/components/ui";
+import { Check, CreditCard, Filter, Wallet } from "lucide-react";
 
 const PAGE_SIZE = 20;
 
@@ -19,14 +33,17 @@ type Rec = {
   sales_invoices: { no_nota: string; customer_name: string } | null;
 };
 
+type StatusFilter = "all" | "belum_lunas" | "lunas";
+
 export default function PiutangPage() {
   const supabase = createClient();
   const toast = useToast();
   const [rows, setRows] = useState<Rec[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState<"all" | "belum_lunas" | "lunas">("belum_lunas");
+  const [filter, setFilter] = useState<StatusFilter>("belum_lunas");
   const [loading, setLoading] = useState(true);
+  const [outstanding, setOutstanding] = useState({ sisa: 0, jumlah: 0 });
 
   const [payTarget, setPayTarget] = useState<Rec | null>(null);
   const [payJumlah, setPayJumlah] = useState("");
@@ -45,6 +62,13 @@ export default function PiutangPage() {
       setRows(data as Rec[]);
       setTotal(count ?? 0);
     }
+
+    const { data: open } = await supabase.from("receivables").select("total, paid").neq("status", "lunas");
+    setOutstanding({
+      sisa: (open ?? []).reduce((s: number, r: any) => s + (r.total - r.paid), 0),
+      jumlah: open?.length ?? 0,
+    });
+
     setLoading(false);
   }
 
@@ -116,110 +140,121 @@ export default function PiutangPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const today = todayISO();
 
+  const columns: TableColumn<Rec>[] = [
+    { key: "no_nota", header: "No Nota", render: (r) => <span className="font-mono font-semibold text-slate-700">{r.sales_invoices?.no_nota ?? "-"}</span> },
+    { key: "customer", header: "Pelanggan", render: (r) => r.sales_invoices?.customer_name ?? "-" },
+    { key: "total", header: "Total", align: "right", render: (r) => formatRupiah(r.total) },
+    { key: "paid", header: "Dibayar", align: "right", render: (r) => formatRupiah(r.paid) },
+    {
+      key: "sisa",
+      header: "Sisa",
+      align: "right",
+      render: (r) => <span className="font-semibold text-slate-800">{formatRupiah(r.total - r.paid)}</span>,
+    },
+    {
+      key: "jatuh_tempo",
+      header: "Jatuh Tempo",
+      render: (r) => {
+        const overdue = r.status === "belum_lunas" && r.jatuh_tempo < today;
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            <span>{formatDate(r.jatuh_tempo)}</span>
+            {overdue && <Badge tone="red">Lewat</Badge>}
+          </div>
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (r.status === "lunas" ? <Badge tone="green">Lunas</Badge> : <Badge tone="amber">Belum</Badge>),
+    },
+    {
+      key: "__aksi",
+      header: "Aksi",
+      align: "right",
+      className: "whitespace-nowrap",
+      headerClassName: "text-right",
+      render: (r) =>
+        r.status === "belum_lunas" ? (
+          <RowActions>
+            <RowAction icon={Check} tone="blue" onClick={() => openPay(r)}>
+              Bayar
+            </RowAction>
+          </RowActions>
+        ) : (
+          <span className="text-slate-300">—</span>
+        ),
+    },
+  ];
+
   return (
     <div>
-      <PageHeader icon={CreditCard} title="Piutang (TOP)" subtitle={`${total} piutang`}>
-        <select
+      <PageHeader icon={CreditCard} title="Piutang (TOP)" subtitle={`${total} piutang`} />
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <StatCard label="Sisa Piutang Berjalan" value={formatRupiah(outstanding.sisa)} icon={Wallet} tone="amber" />
+        <StatCard label="Nota Belum Lunas" value={outstanding.jumlah} icon={CreditCard} tone="red" />
+      </div>
+
+      <FilterBar>
+        <SelectFilter<StatusFilter>
           value={filter}
-          onChange={(e) => { setFilter(e.target.value as any); setPage(0); }}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-        >
-          <option value="belum_lunas">Belum Lunas</option>
-          <option value="lunas">Lunas</option>
-          <option value="all">Semua</option>
-        </select>
-      </PageHeader>
+          onChange={(v) => {
+            setFilter(v);
+            setPage(0);
+          }}
+          icon={Filter}
+          ariaLabel="Filter status piutang"
+          options={[
+            { value: "belum_lunas", label: "Belum Lunas" },
+            { value: "lunas", label: "Lunas" },
+            { value: "all", label: "Semua" },
+          ]}
+        />
+      </FilterBar>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500">
-            <tr>
-              <th className="px-2 py-1.5">No Nota</th>
-              <th className="px-2 py-1.5">Pelanggan</th>
-              <th className="px-2 py-1.5 text-right">Total</th>
-              <th className="px-2 py-1.5 text-right">Dibayar</th>
-              <th className="px-2 py-1.5 text-right">Sisa</th>
-              <th className="px-2 py-1.5">Jatuh Tempo</th>
-              <th className="px-2 py-1.5">Status</th>
-              <th className="px-2 py-1.5 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={8} className="px-2 py-4 text-center text-slate-400">Memuat...</td></tr>}
-            {!loading && rows.length === 0 && <tr><td colSpan={8} className="px-2 py-4 text-center text-slate-400">Tidak ada piutang.</td></tr>}
-            {!loading &&
-              rows.map((r) => {
-                const sisa = r.total - r.paid;
-                const overdue = r.status === "belum_lunas" && r.jatuh_tempo < today;
-                return (
-                  <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-2 py-1 font-mono">{r.sales_invoices?.no_nota ?? "-"}</td>
-                    <td className="px-2 py-1">{r.sales_invoices?.customer_name ?? "-"}</td>
-                    <td className="px-2 py-1 text-right">{formatRupiah(r.total)}</td>
-                    <td className="px-2 py-1 text-right">{formatRupiah(r.paid)}</td>
-                    <td className="px-2 py-1 text-right font-semibold">{formatRupiah(sisa)}</td>
-                    <td className="px-2 py-1">
-                      {formatDate(r.jatuh_tempo)}
-                      {overdue && <span className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[9px] font-bold text-red-600">LEWAT</span>}
-                    </td>
-                    <td className="px-2 py-1">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                        r.status === "lunas" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                      }`}>
-                        {r.status === "lunas" ? "LUNAS" : "BELUM"}
-                      </span>
-                    </td>
-                    <td className="px-2 py-1 text-right">
-                      {r.status === "belum_lunas" && (
-                        <button onClick={() => openPay(r)} className="text-blue-600 hover:underline"><Check className="mr-0.5 inline h-3.5 w-3.5 align-text-bottom" />Bayar</button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
+      <div className="mt-4">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.id}
+          loading={loading}
+          empty="Tidak ada piutang."
+          emptyIcon={CreditCard}
+          footer={<Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />}
+        />
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-        <span>Halaman {page + 1} dari {totalPages} · {total} data</span>
-        <div className="flex gap-2">
-          <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">← Sebelumnya</button>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">Berikutnya →</button>
-        </div>
-      </div>
-
-      {payTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <form onSubmit={handlePay} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-slate-800">Bayar Piutang</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {payTarget.sales_invoices?.no_nota ?? ""} · {payTarget.sales_invoices?.customer_name ?? ""}
-            </p>
-            <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <PageModal
+        open={!!payTarget}
+        onClose={() => setPayTarget(null)}
+        title="Bayar Piutang"
+        subtitle={`${payTarget?.sales_invoices?.no_nota ?? ""} · ${payTarget?.sales_invoices?.customer_name ?? ""}`}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button onClick={() => setPayTarget(null)}>Batal</Button>
+            <Button form="pay-form" type="submit" variant="primary" disabled={paying}>
+              {paying ? "Memproses..." : "Bayar"}
+            </Button>
+          </>
+        }
+      >
+        {payTarget && (
+          <form id="pay-form" onSubmit={handlePay} className="space-y-3">
+            <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700 ring-1 ring-inset ring-amber-200">
               Sisa piutang: <b>{formatRupiah(payTarget.total - payTarget.paid)}</b>
-            </p>
-            <div className="mt-3 space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Jumlah Bayar (Rp)</label>
-                <input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Catatan</label>
-                <input value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder="Opsional"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setPayTarget(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Batal</button>
-              <button type="submit" disabled={paying} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                {paying ? "Memproses..." : "Bayar"}
-              </button>
-            </div>
+            <Field label="Jumlah Bayar (Rp)">
+              <Input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)} />
+            </Field>
+            <Field label="Catatan">
+              <Input value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder="Opsional" />
+            </Field>
           </form>
-        </div>
-      )}
+        )}
+      </PageModal>
     </div>
   );
 }

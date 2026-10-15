@@ -2,19 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatRupiah, formatDate, todayISO } from "@/lib/format";
-import DateInput from "@/components/date-input";
+import { formatRupiah, formatDate } from "@/lib/format";
 import PageHeader from "@/components/page-header";
+import { FilterBar, PeriodFilter, startOfMonthISO, todayISO } from "@/components/filter-bar";
+import { Card, CardTitle, StatCard } from "@/components/ui";
 import { Banknote, Calculator, Package, TrendingUp, Wallet } from "lucide-react";
-
-function startOfMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
 
 export default function LabaRugiPage() {
   const supabase = createClient();
-  const [from, setFrom] = useState(startOfMonth());
+  const [from, setFrom] = useState(startOfMonthISO());
   const [to, setTo] = useState(todayISO());
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
@@ -77,81 +73,69 @@ export default function LabaRugiPage() {
 
   return (
     <div>
-      <PageHeader icon={Calculator} title="Laporan Laba Rugi" subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`}>
-        <div className="flex items-center gap-2">
-          <DateInput value={from} onChange={setFrom} />
-          <span className="text-slate-400">s/d</span>
-          <DateInput value={to} onChange={setTo} />
-        </div>
-      </PageHeader>
+      <PageHeader icon={Calculator} title="Laporan Laba Rugi" subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`} />
+
+      <FilterBar>
+        <PeriodFilter
+          from={from}
+          to={to}
+          onChange={(f, t) => {
+            setFrom(f);
+            setTo(t);
+          }}
+        />
+      </FilterBar>
 
       {loading || !data ? (
         <p className="mt-6 text-sm text-slate-400">Menghitung...</p>
       ) : (
         <div className="mt-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                <Banknote className="h-4 w-4 text-green-600" /> Pendapatan
-              </div>
-              <div className="mt-1 text-xl font-bold text-green-600">{formatRupiah(data.pendapatan.total)}</div>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                <Package className="h-4 w-4 text-slate-500" /> HPP (Harga Modal)
-              </div>
-              <div className="mt-1 text-xl font-bold text-slate-700">{formatRupiah(data.hpp)}</div>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                <TrendingUp className="h-4 w-4 text-blue-600" /> Laba Kotor
-              </div>
-              <div className="mt-1 text-xl font-bold text-blue-700">{formatRupiah(data.labaKotor)}</div>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                <Wallet className="h-4 w-4 text-green-600" /> Laba Bersih
-              </div>
-              <div className={`mt-1 text-xl font-bold ${data.labaBersih >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatRupiah(data.labaBersih)}
-              </div>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Pendapatan" value={formatRupiah(data.pendapatan.total)} icon={Banknote} tone="green" />
+            <StatCard label="HPP (Harga Modal)" value={formatRupiah(data.hpp)} icon={Package} tone="slate" />
+            <StatCard label="Laba Kotor" value={formatRupiah(data.labaKotor)} icon={TrendingUp} tone="blue" />
+            <StatCard
+              label="Laba Bersih"
+              value={formatRupiah(data.labaBersih)}
+              icon={Wallet}
+              tone={data.labaBersih >= 0 ? "green" : "red"}
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <h2 className="text-sm font-bold text-slate-700">Pendapatan</h2>
-              <div className="mt-2 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-600">Penjualan (lunas)</span><span>{formatRupiah(data.pendapatan.penjualan)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-600">Servis (selesai)</span><span>{formatRupiah(data.pendapatan.servis)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-600">Pelunasan Piutang</span><span>{formatRupiah(data.pendapatan.piutang)}</span></div>
-                <div className="flex justify-between border-t border-slate-200 pt-2 font-bold"><span>Total Pendapatan</span><span>{formatRupiah(data.pendapatan.total)}</span></div>
+            <Card>
+              <CardTitle icon={Banknote}>Pendapatan</CardTitle>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-slate-600">Penjualan (lunas)</span><span className="font-medium text-slate-800">{formatRupiah(data.pendapatan.penjualan)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-600">Servis (selesai)</span><span className="font-medium text-slate-800">{formatRupiah(data.pendapatan.servis)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-600">Pelunasan Piutang</span><span className="font-medium text-slate-800">{formatRupiah(data.pendapatan.piutang)}</span></div>
+                <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-slate-800"><span>Total Pendapatan</span><span>{formatRupiah(data.pendapatan.total)}</span></div>
               </div>
-            </div>
+            </Card>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <h2 className="text-sm font-bold text-slate-700">Pengeluaran</h2>
-              <div className="mt-2 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-600">Komisi Mekanik</span><span>{formatRupiah(data.pengeluaran.komisi)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-600">Pengeluaran Lain</span><span>{formatRupiah(data.pengeluaran.lain)}</span></div>
-                <div className="flex justify-between border-t border-slate-200 pt-2 font-bold"><span>Total Pengeluaran</span><span>{formatRupiah(data.pengeluaran.total)}</span></div>
+            <Card>
+              <CardTitle icon={Wallet}>Pengeluaran</CardTitle>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-slate-600">Komisi Mekanik</span><span className="font-medium text-slate-800">{formatRupiah(data.pengeluaran.komisi)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-600">Pengeluaran Lain</span><span className="font-medium text-slate-800">{formatRupiah(data.pengeluaran.lain)}</span></div>
+                <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-slate-800"><span>Total Pengeluaran</span><span>{formatRupiah(data.pengeluaran.total)}</span></div>
               </div>
-            </div>
+            </Card>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-700">Perhitungan</h2>
-            <div className="mt-2 space-y-1.5 text-sm">
+          <Card>
+            <CardTitle icon={Calculator}>Perhitungan</CardTitle>
+            <div className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between text-slate-600"><span>Total Pendapatan</span><span>{formatRupiah(data.pendapatan.total)}</span></div>
               <div className="flex justify-between text-slate-600"><span>HPP</span><span>- {formatRupiah(data.hpp)}</span></div>
-              <div className="flex justify-between font-semibold"><span>Laba Kotor</span><span>{formatRupiah(data.labaKotor)}</span></div>
+              <div className="flex justify-between font-semibold text-slate-800"><span>Laba Kotor</span><span>{formatRupiah(data.labaKotor)}</span></div>
               <div className="flex justify-between text-slate-600"><span>Pengeluaran</span><span>- {formatRupiah(data.pengeluaran.total)}</span></div>
               <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-800">
                 <span>LABA BERSIH</span>
-                <span className={data.labaBersih >= 0 ? "text-green-600" : "text-red-600"}>{formatRupiah(data.labaBersih)}</span>
+                <span className={data.labaBersih >= 0 ? "text-emerald-600" : "text-red-600"}>{formatRupiah(data.labaBersih)}</span>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

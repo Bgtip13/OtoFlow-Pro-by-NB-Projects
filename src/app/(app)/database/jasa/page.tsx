@@ -5,7 +5,21 @@ import { createClient } from "@/lib/supabase/client";
 import { formatRupiah } from "@/lib/format";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
-import { Cog, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { FilterBar, SearchInput } from "@/components/filter-bar";
+import {
+  Button,
+  DataTable,
+  Field,
+  Input,
+  PageModal,
+  Pagination,
+  RowAction,
+  RowActions,
+  Select,
+  StatCard,
+  type TableColumn,
+} from "@/components/ui";
+import { Cog, Download, FileSpreadsheet, Plus, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type Service = {
@@ -134,18 +148,8 @@ export default function JasaPage() {
 
   function downloadTemplate() {
     const ws = XLSX.utils.json_to_sheet([
-      {
-        "Nama Jasa": "Servis Ringan",
-        Harga: 50000,
-        "Tipe Komisi": "nominal",
-        "Nilai Komisi": 10000,
-      },
-      {
-        "Nama Jasa": "Ganti Oli",
-        Harga: 25000,
-        "Tipe Komisi": "persen",
-        "Nilai Komisi": 20,
-      },
+      { "Nama Jasa": "Servis Ringan", Harga: 50000, "Tipe Komisi": "nominal", "Nilai Komisi": 10000 },
+      { "Nama Jasa": "Ganti Oli", Harga: 25000, "Tipe Komisi": "persen", "Nilai Komisi": 20 },
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jasa");
@@ -182,9 +186,7 @@ export default function JasaPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from("services")
-      .upsert(parsed, { onConflict: "nama" });
+    const { error } = await supabase.from("services").upsert(parsed, { onConflict: "nama" });
 
     if (error) {
       toast.error(`Gagal: ${error.message}`);
@@ -200,136 +202,135 @@ export default function JasaPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const columns: TableColumn<Service>[] = [
+    { key: "nama", header: "Nama Jasa", render: (r) => <span className="font-medium text-slate-700">{r.nama}</span> },
+    { key: "harga", header: "Harga", align: "right", render: (r) => formatRupiah(r.harga) },
+    { key: "komisi", header: "Komisi Mekanik", align: "right", render: (r) => <span className="text-amber-600">{komisiLabel(r)}</span> },
+    {
+      key: "__aksi",
+      header: "Aksi",
+      align: "right",
+      className: "whitespace-nowrap",
+      headerClassName: "text-right",
+      render: (r) => (
+        <RowActions>
+          <RowAction tone="blue" onClick={() => openEdit(r)}>
+            Edit
+          </RowAction>
+          <RowAction tone="red" onClick={() => handleDelete(r)}>
+            Hapus
+          </RowAction>
+        </RowActions>
+      ),
+    },
+  ];
+
   return (
     <div>
       <PageHeader icon={Cog} title="Database Jasa" subtitle={`${total} jasa`}>
-        <button onClick={downloadTemplate} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-          <Download className="h-3.5 w-3.5" /> Format Impor
-        </button>
-        <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-          <Upload className="h-3.5 w-3.5" /> Import Excel
-        </button>
-        <button onClick={openNew} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-          <Plus className="h-4 w-4" /> Jasa Baru
-        </button>
+        <Button icon={Download} size="sm" onClick={downloadTemplate}>
+          Format Impor
+        </Button>
+        <Button icon={Upload} size="sm" variant="secondary" onClick={() => setShowImport(true)}>
+          Impor Excel
+        </Button>
+        <Button icon={Plus} size="sm" variant="primary" onClick={openNew}>
+          Jasa Baru
+        </Button>
       </PageHeader>
 
-      <div className="mt-4">
-        <input
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <StatCard label="Total Jasa" value={total} icon={Cog} tone="slate" />
+      </div>
+
+      <FilterBar>
+        <SearchInput
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(0);
+          }}
           placeholder="Cari nama jasa..."
-          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        />
+      </FilterBar>
+
+      <div className="mt-4">
+        <DataTable
+          columns={columns}
+          rows={items}
+          rowKey={(r) => r.id}
+          loading={loading}
+          empty="Belum ada jasa."
+          emptyIcon={Cog}
+          footer={<Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />}
         />
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500">
-            <tr>
-              <th className="px-2 py-1.5">Nama Jasa</th>
-              <th className="px-2 py-1.5 text-right">Harga</th>
-              <th className="px-2 py-1.5 text-right">Komisi Mekanik</th>
-              <th className="px-2 py-1.5 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={4} className="px-2 py-4 text-center text-slate-400">Memuat...</td></tr>
-            )}
-            {!loading && items.length === 0 && (
-              <tr><td colSpan={4} className="px-2 py-4 text-center text-slate-400">Belum ada jasa.</td></tr>
-            )}
-            {!loading &&
-              items.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-2 py-1 font-medium">{r.nama}</td>
-                  <td className="px-2 py-1 text-right">{formatRupiah(r.harga)}</td>
-                  <td className="px-2 py-1 text-right text-slate-600">{komisiLabel(r)}</td>
-                  <td className="px-2 py-1 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(r)} className="text-blue-600 hover:underline"><Pencil className="mr-0.5 inline h-3.5 w-3.5 align-text-bottom" />Edit</button>
-                    <button onClick={() => handleDelete(r)} className="ml-2 text-red-600 hover:underline"><Trash2 className="mr-0.5 inline h-3.5 w-3.5 align-text-bottom" />Hapus</button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-        <span>Halaman {page + 1} dari {totalPages} · {total} data</span>
-        <div className="flex gap-2">
-          <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">← Sebelumnya</button>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">Berikutnya →</button>
-        </div>
-      </div>
-
       {/* MODAL FORM */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-800">{editing ? "Edit Jasa" : "Jasa Baru"}</h2>
-            <form onSubmit={handleSave} className="mt-4 space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Nama Jasa *</label>
-                <input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} placeholder="Contoh: Servis Ringan"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Harga Jasa</label>
-                <input type="number" value={form.harga} onChange={(e) => setForm({ ...form, harga: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Tipe Komisi Mekanik</label>
-                <select value={form.komisi_tipe} onChange={(e) => setForm({ ...form, komisi_tipe: e.target.value as "persen" | "nominal" })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
-                  <option value="nominal">Nominal (Rp)</option>
-                  <option value="persen">Persen (%)</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Nilai Komisi</label>
-                <input type="number" value={form.komisi_nilai} onChange={(e) => setForm({ ...form, komisi_nilai: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Batal</button>
-                <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                  {saving ? "Menyimpan..." : "Simpan"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <PageModal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editing ? "Edit Jasa" : "Jasa Baru"}
+        subtitle="Nama jasa wajib diisi."
+        footer={
+          <>
+            <Button onClick={() => setShowForm(false)}>Batal</Button>
+            <Button form="jasa-form" type="submit" variant="primary" disabled={saving}>
+              {saving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </>
+        }
+      >
+        <form id="jasa-form" onSubmit={handleSave} className="space-y-3">
+          <Field label="Nama Jasa *">
+            <Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} placeholder="Contoh: Servis Ringan" />
+          </Field>
+          <Field label="Harga Jasa">
+            <Input type="number" value={form.harga} onChange={(e) => setForm({ ...form, harga: e.target.value })} placeholder="0" />
+          </Field>
+          <Field label="Tipe Komisi Mekanik">
+            <Select
+              value={form.komisi_tipe}
+              onChange={(e) => setForm({ ...form, komisi_tipe: e.target.value as "persen" | "nominal" })}
+            >
+              <option value="nominal">Nominal (Rp)</option>
+              <option value="persen">Persen (%)</option>
+            </Select>
+          </Field>
+          <Field
+            label="Nilai Komisi"
+            hint={form.komisi_tipe === "persen" ? "Contoh: 20 berarti 20% dari harga jasa." : "Nominal rupiah per pekerjaan."}
+          >
+            <Input type="number" value={form.komisi_nilai} onChange={(e) => setForm({ ...form, komisi_nilai: e.target.value })} placeholder="0" />
+          </Field>
+        </form>
+      </PageModal>
 
       {/* MODAL IMPORT */}
-      {showImport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImport(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-800">Import Excel</h2>
-            <p className="text-sm text-slate-500">Gunakan file dari tombol "Format Impor". Jasa dengan nama sama akan diperbarui (tidak dobel).</p>
-            <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleImportFile(f);
-                }}
-              />
-              <span className="text-sm font-medium text-blue-600">Pilih File Excel</span>
-            </label>
-            {importing && <p className="mt-3 text-sm text-slate-500">Memproses file...</p>}
-            <div className="mt-5 flex justify-end">
-              <button onClick={() => setShowImport(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Tutup</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PageModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        title="Impor Excel"
+        subtitle={`Gunakan file dari tombol "Format Impor". Jasa dengan nama sama akan diperbarui (tidak dobel).`}
+        footer={<Button onClick={() => setShowImport(false)}>Tutup</Button>}
+      >
+        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/50">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImportFile(f);
+            }}
+          />
+          <FileSpreadsheet className="h-7 w-7 text-blue-500" />
+          <span className="text-sm font-semibold text-blue-600">Pilih File Excel</span>
+          <span className="text-xs text-slate-400">.xlsx atau .xls</span>
+        </label>
+        {importing && <p className="mt-3 text-sm text-slate-500">Memproses file...</p>}
+      </PageModal>
     </div>
   );
 }

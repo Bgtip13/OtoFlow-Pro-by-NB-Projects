@@ -4,7 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
-import { Download, Pencil, Plus, Trash2, Upload, type LucideIcon } from "lucide-react";
+import { FilterBar, SearchInput } from "@/components/filter-bar";
+import {
+  Badge,
+  Button,
+  DataTable,
+  Field,
+  Input,
+  PageModal,
+  Pagination,
+  RowAction,
+  RowActions,
+  type TableColumn,
+} from "@/components/ui";
+import { Download, FileSpreadsheet, Pencil, Plus, Trash2, Upload, type LucideIcon } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type Column = { key: string; label: string; required?: boolean };
@@ -187,123 +200,120 @@ export default function CrudTable({
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const tableColumns: TableColumn<any>[] = [
+    ...columns.map((c) => ({
+      key: c.key,
+      header: c.label,
+      render: (r: any) => <span className="font-medium text-slate-700">{r[c.key] || "-"}</span>,
+    })),
+    {
+      key: "__aksi",
+      header: "Aksi",
+      align: "right" as const,
+      className: "whitespace-nowrap",
+      headerClassName: "text-right",
+      render: (r: any) => (
+        <RowActions>
+          <RowAction icon={Pencil} tone="blue" onClick={() => openEdit(r)}>
+            Edit
+          </RowAction>
+          <RowAction icon={Trash2} tone="red" onClick={() => handleDelete(r)}>
+            Hapus
+          </RowAction>
+        </RowActions>
+      ),
+    },
+  ];
+
   return (
     <div>
       <PageHeader icon={icon} title={title} subtitle={`Total ${total} ${itemLabel.toLowerCase()}`}>
-        <button onClick={downloadTemplate} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-          <Download className="h-3.5 w-3.5" /> Format Impor
-        </button>
-        <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100">
-          <Upload className="h-3.5 w-3.5" /> Impor Excel
-        </button>
-        <button onClick={openNew} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
-          <Plus className="h-3.5 w-3.5" /> {itemLabel} Baru
-        </button>
+        <Button icon={Download} size="sm" onClick={downloadTemplate}>
+          Format Impor
+        </Button>
+        <Button icon={Upload} size="sm" variant="secondary" onClick={() => setShowImport(true)}>
+          Impor Excel
+        </Button>
+        <Button icon={Plus} size="sm" variant="primary" onClick={openNew}>
+          {itemLabel} Baru
+        </Button>
       </PageHeader>
 
-      <input
-        value={search}
-        onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-        placeholder="Cari..."
-        className="mt-4 w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-      />
+      <FilterBar>
+        <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(0); }} placeholder="Cari data..." />
+        <span className="hidden text-xs text-slate-400 sm:inline">
+          Cari berdasarkan {searchKeys.map((k) => columns.find((c) => c.key === k)?.label ?? k).join(", ")}
+        </span>
+      </FilterBar>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500">
-            <tr>
-              {columns.map((c) => (
-                <th key={c.key} className="px-3 py-2">{c.label}</th>
-              ))}
-              <th className="px-3 py-2 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-slate-400">Memuat...</td></tr>
-            )}
-            {!loading && items.length === 0 && (
-              <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-slate-400">Belum ada data.</td></tr>
-            )}
-            {!loading &&
-              items.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  {columns.map((c) => (
-                    <td key={c.key} className="px-3 py-2">{r[c.key] ?? "-"}</td>
-                  ))}
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(r)} className="text-blue-600 hover:underline"><Pencil className="mr-0.5 inline h-3.5 w-3.5 align-text-bottom" />Edit</button>
-                    <button onClick={() => handleDelete(r)} className="ml-2 text-red-600 hover:underline"><Trash2 className="mr-0.5 inline h-3.5 w-3.5 align-text-bottom" />Hapus</button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-        <span>Halaman {page + 1} dari {totalPages} · {total} data</span>
-        <div className="flex gap-2">
-          <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">← Sebelumnya</button>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">Berikutnya →</button>
-        </div>
+      <div className="mt-4">
+        <DataTable
+          columns={tableColumns}
+          rows={items}
+          rowKey={(r) => r.id}
+          loading={loading}
+          empty={`Belum ada ${itemLabel.toLowerCase()}.`}
+          emptyIcon={icon}
+          footer={<Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />}
+        />
       </div>
 
       {/* MODAL FORM */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-800">{editing ? `Edit ${itemLabel}` : `${itemLabel} Baru`}</h2>
-            <form onSubmit={handleSave} className="mt-4 space-y-3">
-              {columns.map((c) => (
-                <div key={c.key}>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">
-                    {c.label}{c.required ? " *" : ""}
-                  </label>
-                  <input
-                    value={form[c.key] ?? ""}
-                    onChange={(e) => setForm({ ...form, [c.key]: e.target.value })}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              ))}
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Batal</button>
-                <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                  {saving ? "Menyimpan..." : "Simpan"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <PageModal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editing ? `Edit ${itemLabel}` : `${itemLabel} Baru`}
+        subtitle="Lengkapi data di bawah lalu simpan."
+        footer={
+          <>
+            <Button onClick={() => setShowForm(false)}>Batal</Button>
+            <Button form="crud-form" type="submit" variant="primary" disabled={saving}>
+              {saving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </>
+        }
+      >
+        <form id="crud-form" onSubmit={handleSave} className="space-y-3">
+          {columns.map((c) => (
+            <Field key={c.key} label={c.required ? `${c.label} *` : c.label}>
+              <Input
+                value={form[c.key] ?? ""}
+                onChange={(e) => setForm({ ...form, [c.key]: e.target.value })}
+              />
+            </Field>
+          ))}
+        </form>
+      </PageModal>
 
       {/* MODAL IMPORT */}
-      {showImport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImport(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-800">Impor Excel</h2>
-            <p className="text-sm text-slate-500">Gunakan file dari tombol "Format Impor". Data dengan {uniqueKey} sama akan diperbarui (tidak dobel).</p>
-            <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleImportFile(f);
-                }}
-              />
-              <span className="text-sm font-medium text-blue-600">Pilih File Excel</span>
-            </label>
-            {importing && <p className="mt-3 text-sm text-slate-500">Memproses file...</p>}
-            <div className="mt-5 flex justify-end">
-              <button onClick={() => setShowImport(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Tutup</button>
-            </div>
+      <PageModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        title="Impor Excel"
+        subtitle={`Gunakan file dari tombol "Format Impor". Data dengan ${uniqueKey} sama akan diperbarui (tidak dobel).`}
+        footer={<Button onClick={() => setShowImport(false)}>Tutup</Button>}
+      >
+        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/50">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImportFile(f);
+            }}
+          />
+          <FileSpreadsheet className="h-7 w-7 text-blue-500" />
+          <span className="text-sm font-semibold text-blue-600">Pilih File Excel</span>
+          <span className="text-xs text-slate-400">.xlsx atau .xls</span>
+        </label>
+        {importing && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+            <Badge tone="blue">Proses</Badge> Memproses file...
           </div>
-        </div>
-      )}
+        )}
+      </PageModal>
     </div>
   );
 }

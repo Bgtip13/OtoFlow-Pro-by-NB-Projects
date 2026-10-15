@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, todayISO } from "@/lib/format";
-import { AlertTriangle, Archive, Banknote, CreditCard, Wrench } from "lucide-react";
+import PageHeader from "@/components/page-header";
+import { Badge, Card, CardTitle, StatCard } from "@/components/ui";
+import { AlertTriangle, Archive, Banknote, CreditCard, LayoutDashboard, Wrench } from "lucide-react";
 
 type Item = { id: string; kode: string; brand: string; nama: string; stok: number; stok_min: number; stok_over: number };
 
@@ -48,121 +50,116 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-sm text-slate-500">Ringkasan aktivitas hari ini</p>
-        </div>
-      </div>
+      <PageHeader icon={LayoutDashboard} title="Dashboard" subtitle="Ringkasan aktivitas hari ini" />
 
       {loading ? (
         <p className="mt-6 text-sm text-slate-400">Memuat...</p>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-            <Link href="/laporan/omset" className="flex items-center justify-between rounded-xl bg-blue-600 p-4 text-white">
-              <div>
-                <div className="text-xs opacity-80">Omset Hari Ini</div>
-                <div className="mt-1 text-lg font-bold">{formatRupiah(stats.omset)}</div>
-              </div>
-              <Banknote className="h-6 w-6 opacity-60" />
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+            <Link href="/laporan/omset" className="transition hover:-translate-y-0.5">
+              <StatCard label="Omset Hari Ini" value={formatRupiah(stats.omset)} icon={Banknote} tone="blue" />
             </Link>
-            <Link href="/servis" className="flex items-center justify-between rounded-xl bg-emerald-600 p-4 text-white">
-              <div>
-                <div className="text-xs opacity-80">Servis Aktif</div>
-                <div className="mt-1 text-lg font-bold">{stats.servisAktif}</div>
-              </div>
-              <Wrench className="h-6 w-6 opacity-60" />
+            <Link href="/servis" className="transition hover:-translate-y-0.5">
+              <StatCard label="Servis Aktif" value={stats.servisAktif} icon={Wrench} tone="green" />
             </Link>
-            <Link href="/keuangan/piutang" className="flex items-center justify-between rounded-xl bg-amber-500 p-4 text-white">
-              <div>
-                <div className="text-xs opacity-80">Piutang (TOP)</div>
-                <div className="mt-1 text-lg font-bold">{formatRupiah(stats.piutang)}</div>
-              </div>
-              <CreditCard className="h-6 w-6 opacity-60" />
+            <Link href="/keuangan/piutang" className="transition hover:-translate-y-0.5">
+              <StatCard label="Piutang (TOP)" value={formatRupiah(stats.piutang)} icon={CreditCard} tone="amber" />
             </Link>
-            <Link href="/database/barang" className="flex items-center justify-between rounded-xl bg-red-500 p-4 text-white">
-              <div>
-                <div className="text-xs opacity-80">Stok Menipis</div>
-                <div className="mt-1 text-lg font-bold">{stats.stokMenipis}</div>
-              </div>
-              <AlertTriangle className="h-6 w-6 opacity-60" />
+            <Link href="/database/barang" className="transition hover:-translate-y-0.5">
+              <StatCard label="Stok Menipis" value={stats.stokMenipis} icon={AlertTriangle} tone="red" />
             </Link>
-            <Link href="/database/barang" className="flex items-center justify-between rounded-xl bg-violet-600 p-4 text-white">
-              <div>
-                <div className="text-xs opacity-80">Stok Over</div>
-                <div className="mt-1 text-lg font-bold">{stats.stokOver}</div>
-              </div>
-              <Archive className="h-6 w-6 opacity-60" />
+            <Link href="/database/barang" className="transition hover:-translate-y-0.5">
+              <StatCard label="Stok Over" value={stats.stokOver} icon={Archive} tone="violet" />
             </Link>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-700">🟠 Stok Menipis</h3>
-                <Link href="/database/barang" className="text-xs text-blue-600 hover:underline">Lihat semua →</Link>
-              </div>
+            <Card>
+              <CardTitle
+                icon={AlertTriangle}
+                right={
+                  <Link href="/database/barang" className="text-xs font-semibold text-blue-600 hover:underline">
+                    Lihat semua →
+                  </Link>
+                }
+              >
+                Stok Menipis
+              </CardTitle>
               {menipis.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400">Tidak ada barang menipis. 👍</p>
+                <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-6 text-center text-sm text-emerald-600">
+                  Tidak ada barang menipis 👍
+                </p>
               ) : (
-                <div className="mt-2 overflow-x-auto">
+                <div className="mt-3 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-                        <th className="px-4 py-1.5">Brand</th>
-                        <th className="px-4 py-1.5">Nama Barang</th>
-                        <th className="px-4 py-1.5 text-right">Stok</th>
-                        <th className="px-4 py-1.5 text-right">Stok Min</th>
+                      <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400">
+                        <th className="py-2 pr-3">Brand</th>
+                        <th className="py-2 pr-3">Nama Barang</th>
+                        <th className="py-2 pr-3 text-right">Stok</th>
+                        <th className="py-2 text-right">Stok Min</th>
                       </tr>
                     </thead>
                     <tbody>
                       {menipis.map((it) => (
                         <tr key={it.id} className="border-b border-slate-50 last:border-0">
-                          <td className="px-4 py-1.5 text-slate-500">{it.brand || "-"}</td>
-                          <td className="px-4 py-1.5 font-medium">{it.nama}</td>
-                          <td className="px-4 py-1.5 text-right font-semibold text-red-600">{it.stok}</td>
-                          <td className="px-4 py-1.5 text-right">{it.stok_min}</td>
+                          <td className="py-2 pr-3 text-slate-500">{it.brand || "-"}</td>
+                          <td className="py-2 pr-3 font-medium text-slate-700">{it.nama}</td>
+                          <td className="py-2 pr-3 text-right">
+                            <Badge tone="red">{it.stok}</Badge>
+                          </td>
+                          <td className="py-2 text-right text-slate-500">{it.stok_min}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
+            </Card>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-700">📦 Stok Over</h3>
-                <Link href="/database/barang" className="text-xs text-blue-600 hover:underline">Lihat semua →</Link>
-              </div>
+            <Card>
+              <CardTitle
+                icon={Archive}
+                right={
+                  <Link href="/database/barang" className="text-xs font-semibold text-blue-600 hover:underline">
+                    Lihat semua →
+                  </Link>
+                }
+              >
+                Stok Over
+              </CardTitle>
               {over.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-400">Tidak ada barang over stok. 👍</p>
+                <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-6 text-center text-sm text-emerald-600">
+                  Tidak ada barang over stok 👍
+                </p>
               ) : (
-                <div className="mt-2 overflow-x-auto">
+                <div className="mt-3 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-                        <th className="px-4 py-1.5">Brand</th>
-                        <th className="px-4 py-1.5">Nama Barang</th>
-                        <th className="px-4 py-1.5 text-right">Stok</th>
-                        <th className="px-4 py-1.5 text-right">Batas Over</th>
+                      <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400">
+                        <th className="py-2 pr-3">Brand</th>
+                        <th className="py-2 pr-3">Nama Barang</th>
+                        <th className="py-2 pr-3 text-right">Stok</th>
+                        <th className="py-2 text-right">Batas Over</th>
                       </tr>
                     </thead>
                     <tbody>
                       {over.map((it) => (
                         <tr key={it.id} className="border-b border-slate-50 last:border-0">
-                          <td className="px-4 py-1.5 text-slate-500">{it.brand || "-"}</td>
-                          <td className="px-4 py-1.5 font-medium">{it.nama}</td>
-                          <td className="px-4 py-1.5 text-right font-semibold text-amber-600">{it.stok}</td>
-                          <td className="px-4 py-1.5 text-right">{it.stok_over}</td>
+                          <td className="py-2 pr-3 text-slate-500">{it.brand || "-"}</td>
+                          <td className="py-2 pr-3 font-medium text-slate-700">{it.nama}</td>
+                          <td className="py-2 pr-3 text-right">
+                            <Badge tone="amber">{it.stok}</Badge>
+                          </td>
+                          <td className="py-2 text-right text-slate-500">{it.stok_over}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         </>
       )}

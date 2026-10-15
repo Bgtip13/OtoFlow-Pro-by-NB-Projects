@@ -5,7 +5,20 @@ import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, todayISO } from "@/lib/format";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
-import { Download, Package, Plus, Upload } from "lucide-react";
+import { FilterBar, SearchInput } from "@/components/filter-bar";
+import {
+  Button,
+  DataTable,
+  Field,
+  Input,
+  PageModal,
+  Pagination,
+  RowAction,
+  RowActions,
+  StatCard,
+  type TableColumn,
+} from "@/components/ui";
+import { AlertTriangle, Download, FileSpreadsheet, Package, Plus, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type Item = {
@@ -274,183 +287,175 @@ export default function BarangPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const menipis = items.filter((r) => r.stok <= r.stok_min).length;
+
+  const columns: TableColumn<Item>[] = [
+    { key: "kode", header: "Kode", render: (r) => <span className="font-mono text-slate-500">{r.kode}</span> },
+    { key: "brand", header: "Brand", render: (r) => r.brand || "-" },
+    { key: "nama", header: "Nama", render: (r) => <span className="font-medium text-slate-700">{r.nama}</span> },
+    { key: "het", header: "HET", align: "right", render: (r) => formatRupiah(r.het) },
+    { key: "harga_beli", header: "Harga Beli", align: "right", render: (r) => formatRupiah(r.harga_beli) },
+    { key: "harga_jual", header: "Harga Jual", align: "right", render: (r) => formatRupiah(r.harga_jual) },
+    {
+      key: "stok",
+      header: "Stok",
+      align: "right",
+      render: (r) => (
+        <span className={`font-bold ${r.stok <= r.stok_min ? "text-red-600" : "text-slate-800"}`}>{r.stok}</span>
+      ),
+    },
+    { key: "stok_min", header: "Stok Min", align: "right", render: (r) => <span className="text-slate-400">{r.stok_min}</span> },
+    { key: "stok_over", header: "Stok Over", align: "right", render: (r) => <span className="text-slate-400">{r.stok_over}</span> },
+    {
+      key: "__aksi",
+      header: "Aksi",
+      align: "right",
+      className: "whitespace-nowrap",
+      headerClassName: "text-right",
+      render: (r) => (
+        <RowActions>
+          <RowAction tone="blue" onClick={() => openEdit(r)}>
+            Edit
+          </RowAction>
+          <RowAction tone="red" onClick={() => handleDelete(r)}>
+            Hapus
+          </RowAction>
+        </RowActions>
+      ),
+    },
+  ];
 
   return (
     <div>
       <PageHeader icon={Package} title="Database Barang" subtitle={`Total ${total} barang`}>
-        <button onClick={downloadTemplate} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-          <Download className="h-3.5 w-3.5" /> Format Impor
-        </button>
-        <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100">
-          <Upload className="h-3.5 w-3.5" /> Impor Excel
-        </button>
-        <button onClick={openNew} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
-          <Plus className="h-3.5 w-3.5" /> Barang Baru
-        </button>
+        <Button icon={Download} size="sm" onClick={downloadTemplate}>
+          Format Impor
+        </Button>
+        <Button icon={Upload} size="sm" variant="secondary" onClick={() => setShowImport(true)}>
+          Impor Excel
+        </Button>
+        <Button icon={Plus} size="sm" variant="primary" onClick={openNew}>
+          Barang Baru
+        </Button>
       </PageHeader>
 
-      <input
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setPage(0);
-        }}
-        placeholder="Cari kode / brand / nama barang..."
-        className="mt-4 w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-      />
-
-      <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-500">
-              <th className="px-3 py-2">Kode</th>
-              <th className="px-3 py-2">Brand</th>
-              <th className="px-3 py-2">Nama</th>
-              <th className="px-3 py-2 text-right">HET</th>
-              <th className="px-3 py-2 text-right">Harga Beli</th>
-              <th className="px-3 py-2 text-right">Harga Jual</th>
-              <th className="px-3 py-2 text-right">Stok</th>
-              <th className="px-3 py-2 text-right">Stok Min</th>
-              <th className="px-3 py-2 text-right">Stok Over</th>
-              <th className="px-3 py-2 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-400">Memuat...</td></tr>
-            ) : items.length === 0 ? (
-              <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-400">Belum ada data.</td></tr>
-            ) : (
-              items.map((r) => (
-                <tr key={r.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50">
-                  <td className="px-3 py-2 font-medium">{r.kode}</td>
-                  <td className="px-3 py-2 text-slate-500">{r.brand || "-"}</td>
-                  <td className="px-3 py-2">{r.nama}</td>
-                  <td className="px-3 py-2 text-right">{formatRupiah(r.het)}</td>
-                  <td className="px-3 py-2 text-right">{formatRupiah(r.harga_beli)}</td>
-                  <td className="px-3 py-2 text-right">{formatRupiah(r.harga_jual)}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{r.stok}</td>
-                  <td className="px-3 py-2 text-right text-slate-500">{r.stok_min}</td>
-                  <td className="px-3 py-2 text-right text-slate-500">{r.stok_over}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(r)} className="text-blue-600 hover:underline">Edit</button>
-                    <button onClick={() => handleDelete(r)} className="ml-2 text-red-600 hover:underline">Hapus</button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="Total Barang" value={total} icon={Package} tone="slate" />
+        <StatCard
+          label="Stok Menipis"
+          value={menipis}
+          icon={AlertTriangle}
+          tone={menipis > 0 ? "red" : "green"}
+          hint="Di halaman ini"
+        />
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <span>Halaman {page + 1} dari {totalPages}</span>
-        <div className="flex gap-2">
-          <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">← Sebelumnya</button>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">Berikutnya →</button>
-        </div>
+      <FilterBar>
+        <SearchInput
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(0);
+          }}
+          placeholder="Cari kode / brand / nama barang..."
+          className="sm:w-80"
+        />
+      </FilterBar>
+
+      <div className="mt-4">
+        <DataTable
+          columns={columns}
+          rows={items}
+          rowKey={(r) => r.id}
+          loading={loading}
+          empty="Belum ada data barang."
+          emptyIcon={Package}
+          footer={<Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />}
+        />
       </div>
 
       {/* MODAL FORM */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-800">{editing ? "Edit Barang" : "Barang Baru"}</h2>
-            <form onSubmit={handleSave} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Kode *</label>
-                <input value={form.kode} onChange={(e) => setForm({ ...form, kode: e.target.value })} placeholder="Contoh: OLI-001"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Brand</label>
-                <input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} placeholder="Contoh: AHM, Yamalube"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-slate-600">Nama Barang *</label>
-                <input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} placeholder="Nama barang"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">HET</label>
-                <input type="number" value={form.het} onChange={(e) => setForm({ ...form, het: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Harga Beli</label>
-                <input type="number" value={form.harga_beli} onChange={(e) => setForm({ ...form, harga_beli: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Harga Jual</label>
-                <input type="number" value={form.harga_jual} onChange={(e) => setForm({ ...form, harga_jual: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Stok Minimal</label>
-                <input type="number" value={form.stok_min} onChange={(e) => setForm({ ...form, stok_min: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Stok Over (batas)</label>
-                <input type="number" value={form.stok_over} onChange={(e) => setForm({ ...form, stok_over: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Stok Awal</label>
-                <input type="number" value={form.stok_awal} onChange={(e) => setForm({ ...form, stok_awal: e.target.value })} placeholder="0"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div className="flex items-end justify-end gap-2 sm:col-span-2">
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Batal</button>
-                <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                  {saving ? "Menyimpan..." : "Simpan"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <PageModal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editing ? "Edit Barang" : "Barang Baru"}
+        subtitle="Kode dan nama barang wajib diisi."
+        maxWidth="max-w-2xl"
+        footer={
+          <>
+            <Button onClick={() => setShowForm(false)}>Batal</Button>
+            <Button form="barang-form" type="submit" variant="primary" disabled={saving}>
+              {saving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </>
+        }
+      >
+        <form id="barang-form" onSubmit={handleSave} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Kode *">
+            <Input value={form.kode} onChange={(e) => setForm({ ...form, kode: e.target.value })} placeholder="Contoh: OLI-001" />
+          </Field>
+          <Field label="Brand">
+            <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} placeholder="Contoh: Yamalube" />
+          </Field>
+          <Field label="Nama Barang *" className="sm:col-span-2">
+            <Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} placeholder="Nama barang" />
+          </Field>
+          <Field label="HET">
+            <Input type="number" value={form.het} onChange={(e) => setForm({ ...form, het: e.target.value })} placeholder="0" />
+          </Field>
+          <Field label="Harga Beli">
+            <Input type="number" value={form.harga_beli} onChange={(e) => setForm({ ...form, harga_beli: e.target.value })} placeholder="0" />
+          </Field>
+          <Field label="Harga Jual">
+            <Input type="number" value={form.harga_jual} onChange={(e) => setForm({ ...form, harga_jual: e.target.value })} placeholder="0" />
+          </Field>
+          <Field label="Stok Minimal">
+            <Input type="number" value={form.stok_min} onChange={(e) => setForm({ ...form, stok_min: e.target.value })} placeholder="0" />
+          </Field>
+          <Field label="Stok Over (batas)">
+            <Input type="number" value={form.stok_over} onChange={(e) => setForm({ ...form, stok_over: e.target.value })} placeholder="0" />
+          </Field>
+          <Field label="Stok Awal">
+            <Input type="number" value={form.stok_awal} onChange={(e) => setForm({ ...form, stok_awal: e.target.value })} placeholder="0" />
+          </Field>
+        </form>
+      </PageModal>
 
       {/* MODAL IMPORT */}
-      {showImport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImport(false)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-800">Impor Excel</h2>
-            <p className="text-sm text-slate-500">Gunakan file dari tombol "📥 Format Impor" agar terbaca sistem.</p>
+      <PageModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        title="Impor Excel"
+        subtitle={`Gunakan file dari tombol "Format Impor" agar terbaca sistem.`}
+        footer={<Button onClick={() => setShowImport(false)}>Tutup</Button>}
+      >
+        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/50">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImportFile(f);
+            }}
+          />
+          <FileSpreadsheet className="h-7 w-7 text-blue-500" />
+          <span className="text-sm font-semibold text-blue-600">Pilih File Excel</span>
+          <span className="text-xs text-slate-400">.xlsx atau .xls</span>
+        </label>
 
-            <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleImportFile(f);
-                }}
-              />
-              <span className="text-sm font-medium text-blue-600">Pilih File Excel</span>
-            </label>
+        <label className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 p-3">
+          <input type="checkbox" checked={importOnlyHET} onChange={(e) => setImportOnlyHET(e.target.checked)} className="mt-0.5" />
+          <span className="text-xs text-slate-600">
+            <b>Centang (aktif):</b> mode update HET — hanya memperbarui harga barang yang sudah ada, barang baru tidak masuk.
+            <br />
+            <b>Hilangkan centang:</b> mode tambah — barang baru dimasukkan, kode yang sudah ada dilewati.
+          </span>
+        </label>
 
-            <label className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 p-3">
-              <input type="checkbox" checked={importOnlyHET} onChange={(e) => setImportOnlyHET(e.target.checked)} className="mt-0.5" />
-              <span className="text-xs text-slate-600">
-                <b>Centang (aktif):</b> mode update HET — hanya memperbarui harga barang yang sudah ada, barang baru tidak masuk.
-                <br />
-                <b>Hilangkan centang:</b> mode tambah — barang baru dimasukkan, kode yang sudah ada dilewati.
-              </span>
-            </label>
-
-            {importing && <p className="mt-3 text-sm text-slate-500">Memproses file...</p>}
-
-            <div className="mt-5 flex justify-end">
-              <button onClick={() => setShowImport(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Tutup</button>
-            </div>
-          </div>
-        </div>
-      )}
+        {importing && <p className="mt-3 text-sm text-slate-500">Memproses file...</p>}
+      </PageModal>
     </div>
   );
 }

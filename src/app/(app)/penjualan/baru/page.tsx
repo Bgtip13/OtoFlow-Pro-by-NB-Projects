@@ -28,6 +28,7 @@ export default function PenjualanBaruPage() {
   const [loadedNo, setLoadedNo] = useState("");
   const [noNota, setNoNota] = useState("");
   const [hppMethod, setHppMethod] = useState<"average" | "last">("average");
+  const [ready, setReady] = useState(false);
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [custSearch, setCustSearch] = useState("");
@@ -63,7 +64,7 @@ export default function PenjualanBaruPage() {
           setNoNota(inv.no_nota);
           setStatus(inv.status);
           setJatuhTempo(inv.jatuh_tempo || todayISO());
-          setHeaderDiskon(String(inv.diskon || ""));
+          setHeaderDiskon(String(inv.subtotal > 0 ? ((inv.diskon || 0) / inv.subtotal) * 100 : 0));
           setNote(inv.note || "");
           if (inv.customer_id) {
             const { data: c } = await supabase.from("sales_customers").select("*").eq("id", inv.customer_id).single();
@@ -81,13 +82,14 @@ export default function PenjualanBaruPage() {
             setCart(
               det.map((d: any) => {
                 const it = itemMap.get(d.item_id);
+                const gross = d.harga_satuan * d.qty;
                 return {
                   item_id: d.item_id,
                   kode: it?.kode ?? "",
                   nama: d.item_name,
                   qty: d.qty,
                   harga: d.harga_satuan,
-                  diskon: d.diskon,
+                  diskon: gross > 0 ? (d.diskon / gross) * 100 : 0,
                   hpp: d.hpp_tercatat,
                   stok: it?.stok ?? 0,
                 };
@@ -99,6 +101,7 @@ export default function PenjualanBaruPage() {
         const no = await generateNoNota(supabase, "SI");
         setNoNota(no);
       }
+      setReady(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -163,8 +166,10 @@ export default function PenjualanBaruPage() {
   }
 
   const subtotal = cart.reduce((s, l) => s + l.harga * l.qty, 0);
-  const itemDiskon = cart.reduce((s, l) => s + l.diskon * l.qty, 0);
-  const totalDiskon = itemDiskon + (Number(headerDiskon) || 0);
+  const itemDiskon = cart.reduce((s, l) => s + l.harga * l.qty * (l.diskon / 100), 0);
+  const headerDiskonPct = Math.min(100, Math.max(0, Number(headerDiskon) || 0));
+  const headerDiskonRp = subtotal * (headerDiskonPct / 100);
+  const totalDiskon = itemDiskon + headerDiskonRp;
   const total = subtotal - totalDiskon;
 
   async function saveCustomer() {
@@ -221,7 +226,7 @@ export default function PenjualanBaruPage() {
 
       if (editingId) {
         await prepareSalesForResave(supabase, editingId);
-        const { data: inv, error: errUpd } = await supabase
+        const { error: errUpd } = await supabase
           .from("sales_invoices")
           .update({
             customer_id: customer?.id ?? null,
@@ -229,13 +234,11 @@ export default function PenjualanBaruPage() {
             status,
             jatuh_tempo: status === "top" ? jatuhTempo : null,
             subtotal,
-            diskon: Number(headerDiskon) || 0,
+            diskon: headerDiskonRp,
             total,
             note,
           })
-          .eq("id", editingId)
-          .select()
-          .single();
+          .eq("id", editingId);
         if (errUpd) throw errUpd;
         invId = editingId;
         no = loadedNo;
@@ -250,7 +253,7 @@ export default function PenjualanBaruPage() {
             status,
             jatuh_tempo: status === "top" ? jatuhTempo : null,
             subtotal,
-            diskon: Number(headerDiskon) || 0,
+            diskon: headerDiskonRp,
             total,
             note,
             created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
@@ -272,8 +275,8 @@ export default function PenjualanBaruPage() {
           qty: l.qty,
           harga_satuan: l.harga,
           hpp_tercatat: l.hpp,
-          diskon: l.diskon,
-          subtotal: l.harga * l.qty - l.diskon * l.qty,
+          diskon: l.harga * l.qty * (l.diskon / 100),
+          subtotal: l.harga * l.qty * (1 - l.diskon / 100),
         });
         if (errD) throw errD;
 
@@ -323,14 +326,18 @@ export default function PenjualanBaruPage() {
     }
   }
 
+  if (!ready) return <p className="text-sm text-slate-400">Memuat...</p>;
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
-            {editingId ? "Edit Nota Penjualan" : "Nota Penjualan"}
+            {editingId ? "Edit Nota Penjualan" : "Nota Penjualan Baru"}
           </h1>
-          <p className="text-sm text-slate-500">No nota: <span className="font-mono font-semibold text-blue-600">{noNota}</span></p>
+          <p className="text-sm text-slate-500">
+            No nota: <span className="font-mono font-semibold text-blue-600">{noNota}</span>
+          </p>
         </div>
         <button onClick={() => router.push("/penjualan")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           ← Kembali
@@ -404,7 +411,7 @@ export default function PenjualanBaruPage() {
             {customer && (
               <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                 <span className="font-semibold">{customer.nama}</span>
-                <span className="ml-2 text-xs text-slate-400">{customer.no_hp} · {customer.alamat}</span>
+                <span className="ml-2 text-xs text-slate-400">{customer.no_hp}{customer.alamat ? ` · ${customer.alamat}` : ""}</span>
               </div>
             )}
           </div>
@@ -453,7 +460,7 @@ export default function PenjualanBaruPage() {
                       <th className="px-2 py-1.5">Barang</th>
                       <th className="px-2 py-1.5 w-16">Qty</th>
                       <th className="px-2 py-1.5 w-28">Harga</th>
-                      <th className="px-2 py-1.5 w-24">Diskon/unit</th>
+                      <th className="px-2 py-1.5 w-24">Diskon %</th>
                       <th className="px-2 py-1.5 text-right">Subtotal</th>
                       <th className="px-2 py-1.5"></th>
                     </tr>
@@ -479,12 +486,12 @@ export default function PenjualanBaruPage() {
                             className="w-full rounded border border-slate-300 px-1.5 py-1 text-right focus:border-blue-500 focus:outline-none" />
                         </td>
                         <td className="px-2 py-1.5">
-                          <input type="number" value={l.diskon}
-                            onChange={(e) => updateLine(l.item_id, { diskon: Number(e.target.value) || 0 })}
+                          <input type="number" min={0} max={100} value={l.diskon}
+                            onChange={(e) => updateLine(l.item_id, { diskon: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
                             className="w-full rounded border border-slate-300 px-1.5 py-1 text-right focus:border-blue-500 focus:outline-none" />
                         </td>
                         <td className="px-2 py-1.5 text-right font-semibold">
-                          {formatRupiah(l.harga * l.qty - l.diskon * l.qty)}
+                          {formatRupiah(l.harga * l.qty * (1 - l.diskon / 100))}
                         </td>
                         <td className="px-2 py-1.5 text-right">
                           <button onClick={() => removeLine(l.item_id)} className="text-red-600 hover:underline">✕</button>
@@ -519,8 +526,9 @@ export default function PenjualanBaruPage() {
                 </div>
               )}
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Diskon Nota (Rp)</label>
-                <input type="number" value={headerDiskon} onChange={(e) => setHeaderDiskon(e.target.value)}
+                <label className="mb-1 block text-xs font-medium text-slate-600">Diskon Nota (%)</label>
+                <input type="number" min={0} max={100} value={headerDiskon} onChange={(e) => setHeaderDiskon(e.target.value)}
+                  placeholder="0"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div>
@@ -534,7 +542,8 @@ export default function PenjualanBaruPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{formatRupiah(subtotal)}</span></div>
-              <div className="flex justify-between text-slate-600"><span>Diskon</span><span>- {formatRupiah(totalDiskon)}</span></div>
+              <div className="flex justify-between text-slate-600"><span>Diskon Item</span><span>- {formatRupiah(itemDiskon)}</span></div>
+              <div className="flex justify-between text-slate-600"><span>Diskon Nota ({headerDiskonPct}%)</span><span>- {formatRupiah(headerDiskonRp)}</span></div>
               <div className="flex items-center justify-between border-t border-slate-200 pt-2">
                 <span className="font-bold text-slate-800">TOTAL</span>
                 <span className="text-xl font-bold text-blue-700">{formatRupiah(total)}</span>

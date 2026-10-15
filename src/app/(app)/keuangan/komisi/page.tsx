@@ -2,10 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatRupiah, formatDate, todayISO } from "@/lib/format";
+import { formatRupiah, todayISO } from "@/lib/format";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
-import { Check, HandCoins } from "lucide-react";
+import { FilterBar, SelectFilter } from "@/components/filter-bar";
+import {
+  Badge,
+  Button,
+  DataTable,
+  Field,
+  Input,
+  PageModal,
+  Pagination,
+  RowAction,
+  RowActions,
+  StatCard,
+  type TableColumn,
+} from "@/components/ui";
+import { Check, Filter, HandCoins, Wallet } from "lucide-react";
 
 const PAGE_SIZE = 20;
 
@@ -21,14 +35,17 @@ type Comm = {
   mechanics: { nama: string } | null;
 };
 
+type StatusFilter = "all" | "belum_dibayar" | "lunas";
+
 export default function KomisiPage() {
   const supabase = createClient();
   const toast = useToast();
   const [rows, setRows] = useState<Comm[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState<"all" | "belum_dibayar" | "lunas">("belum_dibayar");
+  const [filter, setFilter] = useState<StatusFilter>("belum_dibayar");
   const [loading, setLoading] = useState(true);
+  const [outstanding, setOutstanding] = useState({ jumlah: 0, count: 0 });
 
   const [payTarget, setPayTarget] = useState<Comm | null>(null);
   const [payJumlah, setPayJumlah] = useState("");
@@ -47,6 +64,13 @@ export default function KomisiPage() {
       setRows(data as Comm[]);
       setTotal(count ?? 0);
     }
+
+    const { data: open } = await supabase.from("mechanic_commissions").select("jumlah").eq("status", "belum_dibayar");
+    setOutstanding({
+      jumlah: (open ?? []).reduce((s: number, r: any) => s + r.jumlah, 0),
+      count: open?.length ?? 0,
+    });
+
     setLoading(false);
   }
 
@@ -99,96 +123,99 @@ export default function KomisiPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const columns: TableColumn<Comm>[] = [
+    { key: "no_nota", header: "No Nota Servis", render: (c) => <span className="font-mono font-semibold text-slate-700">{c.service_invoices?.no_nota ?? "-"}</span> },
+    { key: "customer", header: "Pelanggan", render: (c) => c.service_invoices?.customer_name ?? "-" },
+    { key: "mechanic", header: "Mekanik", render: (c) => c.mechanics?.nama ?? "-" },
+    { key: "jumlah", header: "Komisi", align: "right", render: (c) => <span className="font-semibold text-slate-800">{formatRupiah(c.jumlah)}</span> },
+    {
+      key: "status",
+      header: "Status",
+      render: (c) => (c.status === "lunas" ? <Badge tone="green">Lunas</Badge> : <Badge tone="amber">Belum</Badge>),
+    },
+    {
+      key: "__aksi",
+      header: "Aksi",
+      align: "right",
+      className: "whitespace-nowrap",
+      headerClassName: "text-right",
+      render: (c) =>
+        c.status === "belum_dibayar" ? (
+          <RowActions>
+            <RowAction icon={Check} tone="blue" onClick={() => openPay(c)}>
+              Bayar
+            </RowAction>
+          </RowActions>
+        ) : (
+          <span className="text-slate-300">—</span>
+        ),
+    },
+  ];
+
   return (
     <div>
-      <PageHeader icon={HandCoins} title="Pembayaran Komisi Mekanik" subtitle={`${total} komisi`}>
-        <select
+      <PageHeader icon={HandCoins} title="Pembayaran Komisi Mekanik" subtitle={`${total} komisi`} />
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <StatCard label="Komisi Belum Dibayar" value={formatRupiah(outstanding.jumlah)} icon={Wallet} tone="amber" />
+        <StatCard label="Jumlah Komisi Tertunda" value={outstanding.count} icon={HandCoins} tone="red" />
+      </div>
+
+      <FilterBar>
+        <SelectFilter<StatusFilter>
           value={filter}
-          onChange={(e) => { setFilter(e.target.value as any); setPage(0); }}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-        >
-          <option value="belum_dibayar">Belum Dibayar</option>
-          <option value="lunas">Sudah Dibayar</option>
-          <option value="all">Semua</option>
-        </select>
-      </PageHeader>
+          onChange={(v) => {
+            setFilter(v);
+            setPage(0);
+          }}
+          icon={Filter}
+          ariaLabel="Filter status komisi"
+          options={[
+            { value: "belum_dibayar", label: "Belum Dibayar" },
+            { value: "lunas", label: "Sudah Dibayar" },
+            { value: "all", label: "Semua" },
+          ]}
+        />
+      </FilterBar>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500">
-            <tr>
-              <th className="px-2 py-1.5">No Nota Servis</th>
-              <th className="px-2 py-1.5">Pelanggan</th>
-              <th className="px-2 py-1.5">Mekanik</th>
-              <th className="px-2 py-1.5 text-right">Komisi</th>
-              <th className="px-2 py-1.5">Status</th>
-              <th className="px-2 py-1.5 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={6} className="px-2 py-4 text-center text-slate-400">Memuat...</td></tr>}
-            {!loading && rows.length === 0 && <tr><td colSpan={6} className="px-2 py-4 text-center text-slate-400">Tidak ada komisi.</td></tr>}
-            {!loading &&
-              rows.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-2 py-1 font-mono">{c.service_invoices?.no_nota ?? "-"}</td>
-                  <td className="px-2 py-1">{c.service_invoices?.customer_name ?? "-"}</td>
-                  <td className="px-2 py-1">{c.mechanics?.nama ?? "-"}</td>
-                  <td className="px-2 py-1 text-right font-semibold">{formatRupiah(c.jumlah)}</td>
-                  <td className="px-2 py-1">
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                      c.status === "lunas" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                    }`}>
-                      {c.status === "lunas" ? "LUNAS" : "BELUM"}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1 text-right">
-                    {c.status === "belum_dibayar" && (
-                      <button onClick={() => openPay(c)} className="text-blue-600 hover:underline"><Check className="mr-0.5 inline h-3.5 w-3.5 align-text-bottom" />Bayar</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="mt-4">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(c) => c.id}
+          loading={loading}
+          empty="Tidak ada komisi."
+          emptyIcon={HandCoins}
+          footer={<Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />}
+        />
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-        <span>Halaman {page + 1} dari {totalPages} · {total} data</span>
-        <div className="flex gap-2">
-          <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">← Sebelumnya</button>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">Berikutnya →</button>
-        </div>
-      </div>
-
-      {payTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <form onSubmit={handlePay} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-slate-800">Bayar Komisi</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {payTarget.mechanics?.nama ?? "-"} · {payTarget.service_invoices?.no_nota ?? ""}
-            </p>
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Jumlah (Rp)</label>
-                <input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Catatan</label>
-                <input value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder="Opsional"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setPayTarget(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Batal</button>
-              <button type="submit" disabled={paying} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                {paying ? "Memproses..." : "Bayar & Catat"}
-              </button>
-            </div>
+      <PageModal
+        open={!!payTarget}
+        onClose={() => setPayTarget(null)}
+        title="Bayar Komisi"
+        subtitle={`${payTarget?.mechanics?.nama ?? "-"} · ${payTarget?.service_invoices?.no_nota ?? ""}`}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button onClick={() => setPayTarget(null)}>Batal</Button>
+            <Button form="komisi-form" type="submit" variant="primary" disabled={paying}>
+              {paying ? "Memproses..." : "Bayar & Catat"}
+            </Button>
+          </>
+        }
+      >
+        {payTarget && (
+          <form id="komisi-form" onSubmit={handlePay} className="space-y-3">
+            <Field label="Jumlah (Rp)">
+              <Input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)} />
+            </Field>
+            <Field label="Catatan">
+              <Input value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder="Opsional" />
+            </Field>
           </form>
-        </div>
-      )}
+        )}
+      </PageModal>
     </div>
   );
 }

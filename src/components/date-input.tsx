@@ -1,48 +1,31 @@
 "use client";
 
-// Input tanggal format dd/mm/yyyy (tidak bergantung locale browser)
+import { CalendarDays } from "lucide-react";
+import { cn } from "@/components/ui";
+
+// Input tanggal modern (dd/mm/yyyy mengikuti format lokal browser).
+// Nilai yang dikirim/diterima tetap format ISO "YYYY-MM-DD".
 export default function DateInput({
   value,
   onChange,
+  className,
+  ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
+  className?: string;
+  ariaLabel?: string;
 }) {
-  const [y, m, d] = value && value.length === 10
-    ? value.split("-").map(Number)
-    : [new Date().getFullYear(), 1, 1];
-
-  const days = new Date(y, m, 0).getDate();
-  const dayOptions = Array.from({ length: days }, (_, i) => i + 1);
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  const yearOptions = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i);
-
-  function setPart(part: "y" | "m" | "d", val: number) {
-    let ny = y, nm = m, nd = d;
-    if (part === "y") ny = val;
-    if (part === "m") nm = val;
-    if (part === "d") nd = val;
-    const maxDay = new Date(ny, nm, 0).getDate();
-    if (nd > maxDay) nd = maxDay;
-    onChange(`${ny}-${String(nm).padStart(2, "0")}-${String(nd).padStart(2, "0")}`);
-  }
-
   return (
-    <div className="flex items-center gap-1">
-      <select value={d} onChange={(e) => setPart("d", Number(e.target.value))}
-        className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm">
-        {dayOptions.map((x) => <option key={x} value={x}>{String(x).padStart(2, "0")}</option>)}
-      </select>
-      <span className="text-slate-400">/</span>
-      <select value={m} onChange={(e) => setPart("m", Number(e.target.value))}
-        className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm">
-        {monthNames.map((name, i) => <option key={i} value={i + 1}>{String(i + 1).padStart(2, "0")} ({name})</option>)}
-      </select>
-      <span className="text-slate-400">/</span>
-      <select value={y} onChange={(e) => setPart("y", Number(e.target.value))}
-        className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm">
-        {yearOptions.map((yr) => <option key={yr} value={yr}>{yr}</option>)}
-      </select>
+    <div className={cn("relative", className)}>
+      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input
+        type="date"
+        aria-label={ariaLabel}
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
+      />
     </div>
   );
 }

@@ -2,18 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatRupiah, formatDate, todayISO } from "@/lib/format";
-import DateInput from "@/components/date-input";
+import { formatRupiah, formatDate } from "@/lib/format";
 import PageHeader from "@/components/page-header";
+import { FilterBar, PeriodFilter, startOfMonthISO, todayISO } from "@/components/filter-bar";
+import { DataTable, StatCard, type TableColumn } from "@/components/ui";
 import { Gauge, HandCoins, TrendingUp, Users } from "lucide-react";
-
-function toISO(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function startOfMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
 
 type Row = {
   mechanic_name: string;
@@ -24,26 +17,10 @@ type Row = {
 
 export default function OmsetMekanikPage() {
   const supabase = createClient();
-  const [from, setFrom] = useState(startOfMonth());
+  const [from, setFrom] = useState(startOfMonthISO());
   const [to, setTo] = useState(todayISO());
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
-
-  function setQuick(period: "today" | "week" | "month") {
-    const d = new Date();
-    if (period === "today") {
-      setFrom(todayISO());
-      setTo(todayISO());
-    } else if (period === "week") {
-      const f = new Date();
-      f.setDate(d.getDate() - 6);
-      setFrom(toISO(f));
-      setTo(todayISO());
-    } else {
-      setFrom(startOfMonth());
-      setTo(todayISO());
-    }
-  }
 
   async function load() {
     setLoading(true);
@@ -73,71 +50,44 @@ export default function OmsetMekanikPage() {
   const totalOmset = rows.reduce((s, r) => s + r.omset, 0);
   const totalKomisi = rows.reduce((s, r) => s + r.komisi, 0);
 
+  const columns: TableColumn<Row>[] = [
+    { key: "mechanic_name", header: "Mekanik", render: (r) => <span className="font-medium text-slate-700">{r.mechanic_name}</span> },
+    { key: "count", header: "Jumlah Servis", align: "right", render: (r) => r.count },
+    { key: "omset", header: "Omset", align: "right", render: (r) => <span className="font-semibold text-slate-800">{formatRupiah(r.omset)}</span> },
+    { key: "komisi", header: "Komisi", align: "right", render: (r) => <span className="text-amber-600">{formatRupiah(r.komisi)}</span> },
+  ];
+
   return (
     <div>
-      <PageHeader icon={Gauge} title="Omset per Mekanik" subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setQuick("today")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Hari Ini</button>
-          <button onClick={() => setQuick("week")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Minggu Ini</button>
-          <button onClick={() => setQuick("month")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Bulan Ini</button>
-          <DateInput value={from} onChange={setFrom} />
-          <span className="text-slate-400">s/d</span>
-          <DateInput value={to} onChange={setTo} />
-        </div>
-      </PageHeader>
+      <PageHeader icon={Gauge} title="Omset per Mekanik" subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`} />
 
-      {loading ? (
-        <p className="mt-6 text-sm text-slate-400">Memuat...</p>
-      ) : (
-        <>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                <TrendingUp className="h-4 w-4 text-blue-600" /> Total Omset
-              </div>
-              <div className="mt-1 text-xl font-bold text-blue-700">{formatRupiah(totalOmset)}</div>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                <HandCoins className="h-4 w-4 text-amber-500" /> Total Komisi
-              </div>
-              <div className="mt-1 text-xl font-bold text-amber-600">{formatRupiah(totalKomisi)}</div>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
-                <Users className="h-4 w-4 text-slate-500" /> Jumlah Mekanik
-              </div>
-              <div className="mt-1 text-xl font-bold text-slate-700">{rows.length}</div>
-            </div>
-          </div>
+      <FilterBar>
+        <PeriodFilter
+          from={from}
+          to={to}
+          onChange={(f, t) => {
+            setFrom(f);
+            setTo(t);
+          }}
+        />
+      </FilterBar>
 
-          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500">
-                <tr>
-                  <th className="px-2 py-1.5">Mekanik</th>
-                  <th className="px-2 py-1.5 text-right">Jumlah Servis</th>
-                  <th className="px-2 py-1.5 text-right">Omset</th>
-                  <th className="px-2 py-1.5 text-right">Komisi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 && (
-                  <tr><td colSpan={4} className="px-2 py-4 text-center text-slate-400">Belum ada data.</td></tr>
-                )}
-                {rows.map((r) => (
-                  <tr key={r.mechanic_name} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-2 py-1 font-medium">{r.mechanic_name}</td>
-                    <td className="px-2 py-1 text-right">{r.count}</td>
-                    <td className="px-2 py-1 text-right font-semibold">{formatRupiah(r.omset)}</td>
-                    <td className="px-2 py-1 text-right">{formatRupiah(r.komisi)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <StatCard label="Total Omset" value={formatRupiah(totalOmset)} icon={TrendingUp} tone="blue" />
+        <StatCard label="Total Komisi" value={formatRupiah(totalKomisi)} icon={HandCoins} tone="amber" />
+        <StatCard label="Jumlah Mekanik" value={rows.length} icon={Users} tone="slate" />
+      </div>
+
+      <div className="mt-4">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.mechanic_name}
+          loading={loading}
+          empty="Belum ada data pada periode ini."
+          emptyIcon={Gauge}
+        />
+      </div>
     </div>
   );
 }
