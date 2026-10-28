@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, formatDate } from "@/lib/format";
+import { useRequestGuard } from "@/lib/hooks";
 import PageHeader from "@/components/page-header";
 import { FilterBar, PeriodFilter, startOfMonthISO, todayISO } from "@/components/filter-bar";
 import { DataTable, StatCard, type TableColumn } from "@/components/ui";
@@ -17,25 +18,33 @@ type Row = {
 
 export default function OmsetMekanikPage() {
   const supabase = createClient();
+  const guard = useRequestGuard();
+
   const [from, setFrom] = useState(startOfMonthISO());
   const [to, setTo] = useState(todayISO());
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
 
   async function load() {
+    const requestId = guard.next();
     setLoading(true);
-    const { data } = await supabase
+
+    const { data, error } = await supabase
       .from("service_invoices")
       .select("mechanic_name, total, komisi_total")
       .gte("tanggal", from)
       .lte("tanggal", to);
+
+    if (!guard.isCurrent(requestId)) return;
+    if (error) console.error(error);
+
     const map = new Map<string, Row>();
     for (const r of data ?? []) {
       const name = r.mechanic_name || "-";
       const cur = map.get(name) ?? { mechanic_name: name, count: 0, omset: 0, komisi: 0 };
       cur.count += 1;
-      cur.omset += r.total;
-      cur.komisi += r.komisi_total;
+      cur.omset += r.total ?? 0;
+      cur.komisi += r.komisi_total ?? 0;
       map.set(name, cur);
     }
     setRows([...map.values()].sort((a, b) => b.omset - a.omset));
@@ -51,15 +60,19 @@ export default function OmsetMekanikPage() {
   const totalKomisi = rows.reduce((s, r) => s + r.komisi, 0);
 
   const columns: TableColumn<Row>[] = [
-    { key: "mechanic_name", header: "Mekanik", render: (r) => <span className="font-medium text-slate-700">{r.mechanic_name}</span> },
+    { key: "mechanic_name", header: "Mekanik", render: (r) => <span className="font-semibold text-slate-800">{r.mechanic_name}</span> },
     { key: "count", header: "Jumlah Servis", align: "right", render: (r) => r.count },
     { key: "omset", header: "Omset", align: "right", render: (r) => <span className="font-semibold text-slate-800">{formatRupiah(r.omset)}</span> },
-    { key: "komisi", header: "Komisi", align: "right", render: (r) => <span className="text-amber-600">{formatRupiah(r.komisi)}</span> },
+    { key: "komisi", header: "Komisi", align: "right", render: (r) => <span className="font-medium text-amber-600">{formatRupiah(r.komisi)}</span> },
   ];
 
   return (
     <div>
-      <PageHeader icon={Gauge} title="Omset per Mekanik" subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`} />
+      <PageHeader
+        icon={Gauge}
+        title="Omset per Mekanik"
+        subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`}
+      />
 
       <FilterBar>
         <PeriodFilter

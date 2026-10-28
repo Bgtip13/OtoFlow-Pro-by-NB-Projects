@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, formatDate, todayISO } from "@/lib/format";
+import { useRequestGuard } from "@/lib/hooks";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
 import { FilterBar, SelectFilter } from "@/components/filter-bar";
@@ -38,6 +39,8 @@ type StatusFilter = "all" | "belum_lunas" | "lunas";
 export default function PiutangPage() {
   const supabase = createClient();
   const toast = useToast();
+  const guard = useRequestGuard();
+
   const [rows, setRows] = useState<Rec[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -51,24 +54,33 @@ export default function PiutangPage() {
   const [paying, setPaying] = useState(false);
 
   async function load() {
+    const requestId = guard.next();
     setLoading(true);
+
     let query = supabase
       .from("receivables")
       .select("*, sales_invoices(no_nota, customer_name)", { count: "exact" })
       .order("jatuh_tempo", { ascending: true });
     if (filter !== "all") query = query.eq("status", filter);
-    const { data, count } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-    if (data) {
-      setRows(data as Rec[]);
-      setTotal(count ?? 0);
+
+    const [listRes, openRes] = await Promise.all([
+      query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
+      supabase.from("receivables").select("total, paid").neq("status", "lunas"),
+    ]);
+
+    if (!guard.isCurrent(requestId)) return;
+
+    if (listRes.data) {
+      setRows(listRes.data as Rec[]);
+      setTotal(listRes.count ?? 0);
     }
+    if (listRes.error) toast.error(`Gagal memuat: ${listRes.error.message}`);
 
-    const { data: open } = await supabase.from("receivables").select("total, paid").neq("status", "lunas");
+    const open = openRes.data ?? [];
     setOutstanding({
-      sisa: (open ?? []).reduce((s: number, r: any) => s + (r.total - r.paid), 0),
-      jumlah: open?.length ?? 0,
+      sisa: open.reduce((s: number, r: any) => s + (r.total - r.paid), 0),
+      jumlah: open.length,
     });
-
     setLoading(false);
   }
 
@@ -88,6 +100,7 @@ export default function PiutangPage() {
     if (!payTarget) return;
     const sisa = payTarget.total - payTarget.paid;
     const jumlah = Number(payJumlah) || 0;
+
     if (jumlah <= 0) {
       toast.error("Jumlah pembayaran harus lebih dari 0.");
       return;
@@ -96,6 +109,7 @@ export default function PiutangPage() {
       toast.error(`Jumlah melebihi sisa piutang (${formatRupiah(sisa)}).`);
       return;
     }
+
     setPaying(true);
 
     const { data: pay, error: errPay } = await supabase
@@ -141,10 +155,10 @@ export default function PiutangPage() {
   const today = todayISO();
 
   const columns: TableColumn<Rec>[] = [
-    { key: "no_nota", header: "No Nota", render: (r) => <span className="font-mono font-semibold text-slate-700">{r.sales_invoices?.no_nota ?? "-"}</span> },
-    { key: "customer", header: "Pelanggan", render: (r) => r.sales_invoices?.customer_name ?? "-" },
+    { key: "no_nota", header: "No Nota", render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{r.sales_invoices?.no_nota ?? "-"}</span> },
+    { key: "customer", header: "Pelanggan", render: (r) => <span className="font-medium text-slate-700">{r.sales_invoices?.customer_name ?? "-"}</span> },
     { key: "total", header: "Total", align: "right", render: (r) => formatRupiah(r.total) },
-    { key: "paid", header: "Dibayar", align: "right", render: (r) => formatRupiah(r.paid) },
+    { key: "paid", header: "Dibayar", align: "right", className: "text-slate-500", render: (r) => formatRupiah(r.paid) },
     {
       key: "sisa",
       header: "Sisa",
@@ -158,7 +172,7 @@ export default function PiutangPage() {
         const overdue = r.status === "belum_lunas" && r.jatuh_tempo < today;
         return (
           <div className="flex flex-wrap items-center gap-1">
-            <span>{formatDate(r.jatuh_tempo)}</span>
+            <span className="text-slate-500">{formatDate(r.jatuh_tempo)}</span>
             {overdue && <Badge tone="red">Lewat</Badge>}
           </div>
         );
@@ -190,7 +204,7 @@ export default function PiutangPage() {
 
   return (
     <div>
-      <PageHeader icon={CreditCard} title="Piutang (TOP)" subtitle={`${total} piutang`} />
+      <PageHeader icon={CreditCard} title="Piutang (TOP)" subtitle={`${total} piutang tercatat`} />
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <StatCard label="Sisa Piutang Berjalan" value={formatRupiah(outstanding.sisa)} icon={Wallet} tone="amber" />
@@ -235,7 +249,7 @@ export default function PiutangPage() {
         footer={
           <>
             <Button onClick={() => setPayTarget(null)}>Batal</Button>
-            <Button form="pay-form" type="submit" variant="primary" disabled={paying}>
+            <Button form="pay-form" type="submit" variant="primary" loading={paying}>
               {paying ? "Memproses..." : "Bayar"}
             </Button>
           </>
@@ -243,11 +257,11 @@ export default function PiutangPage() {
       >
         {payTarget && (
           <form id="pay-form" onSubmit={handlePay} className="space-y-3">
-            <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700 ring-1 ring-inset ring-amber-200">
+            <div className="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700 ring-1 ring-inset ring-amber-200">
               Sisa piutang: <b>{formatRupiah(payTarget.total - payTarget.paid)}</b>
             </div>
             <Field label="Jumlah Bayar (Rp)">
-              <Input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)} />
+              <Input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)} autoFocus />
             </Field>
             <Field label="Catatan">
               <Input value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder="Opsional" />

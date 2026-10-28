@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, formatDate } from "@/lib/format";
+import { useDebouncedValue, useRequestGuard } from "@/lib/hooks";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
 import { FilterBar, FilterSpacer, PeriodFilter, SearchInput, todayISO } from "@/components/filter-bar";
@@ -40,58 +41,76 @@ function startOfMonth() {
 export default function PenjualanPage() {
   const supabase = createClient();
   const toast = useToast();
+  const guard = useRequestGuard();
+
   const [rows, setRows] = useState<SalesInvoice[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [from, setFrom] = useState(startOfMonth());
   const [to, setTo] = useState(todayISO());
   const [summary, setSummary] = useState({ omset: 0, count: 0, lunas: 0, top: 0 });
   const [loading, setLoading] = useState(true);
 
-  function searchOr() {
-    const s = search.trim();
-    return s ? `no_nota.ilike.%${s}%,customer_name.ilike.%${s}%` : "";
+  function searchFilter() {
+    const s = debouncedSearch.trim();
+    if (!s) return "";
+    const like = `%${s.replace(/[",()]/g, " ")}%`;
+    return `no_nota.ilike."${like}",customer_name.ilike."${like}"`;
   }
 
   async function load() {
+    const requestId = guard.next();
     setLoading(true);
+
+    const filter = searchFilter();
 
     let query = supabase
       .from("sales_invoices")
-      .select("*", { count: "exact" })
+      .select("id, no_nota, tanggal, customer_name, status, jatuh_tempo, total", { count: "exact" })
       .gte("tanggal", from)
       .lte("tanggal", to)
       .order("tanggal", { ascending: false })
       .order("no_nota", { ascending: false });
-    const or = searchOr();
-    if (or) query = query.or(or);
-    const { data, count, error } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-    if (error) toast.error(`Gagal memuat: ${error.message}`);
-    if (data) {
-      setRows(data as SalesInvoice[]);
-      setTotal(count ?? 0);
+    if (filter) query = query.or(filter);
+
+    // Ringkasan dijalankan paralel dengan daftar (dulu berurutan → terasa lambat)
+    let sumQuery = supabase
+      .from("sales_invoices")
+      .select("total, status")
+      .gte("tanggal", from)
+      .lte("tanggal", to);
+    if (filter) sumQuery = sumQuery.or(filter);
+
+    const [listRes, sumRes] = await Promise.all([
+      query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
+      sumQuery,
+    ]);
+
+    if (!guard.isCurrent(requestId)) return;
+
+    if (listRes.error) toast.error(`Gagal memuat: ${listRes.error.message}`);
+    if (listRes.data) {
+      setRows(listRes.data as SalesInvoice[]);
+      setTotal(listRes.count ?? 0);
     }
 
-    let sumQuery = supabase.from("sales_invoices").select("total, status").gte("tanggal", from).lte("tanggal", to);
-    if (or) sumQuery = sumQuery.or(or);
-    const { data: sumRows } = await sumQuery;
     const agg = { omset: 0, count: 0, lunas: 0, top: 0 };
-    for (const r of sumRows ?? []) {
+    for (const r of sumRes.data ?? []) {
       agg.omset += r.total ?? 0;
       agg.count += 1;
       if (r.status === "top") agg.top += 1;
       else agg.lunas += 1;
     }
     setSummary(agg);
-
     setLoading(false);
   }
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, from, to]);
+  }, [page, debouncedSearch, from, to]);
 
   async function handleDelete(r: SalesInvoice) {
     if (!confirm(`Hapus nota penjualan ${r.no_nota}? Stok barang dikembalikan dan jurnal/piutang dibersihkan.`)) return;
@@ -111,10 +130,10 @@ export default function PenjualanPage() {
     {
       key: "no_nota",
       header: "No Nota",
-      render: (r) => <span className="font-mono font-semibold text-slate-700">{r.no_nota}</span>,
+      render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{r.no_nota}</span>,
     },
-    { key: "tanggal", header: "Tanggal", render: (r) => formatDate(r.tanggal) },
-    { key: "customer_name", header: "Pelanggan", render: (r) => r.customer_name || "Umum" },
+    { key: "tanggal", header: "Tanggal", render: (r) => <span className="text-slate-500">{formatDate(r.tanggal)}</span> },
+    { key: "customer_name", header: "Pelanggan", render: (r) => <span className="font-medium text-slate-700">{r.customer_name || "Umum"}</span> },
     {
       key: "status",
       header: "Status",
@@ -173,7 +192,7 @@ export default function PenjualanPage() {
         </Link>
       </PageHeader>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total Omset" value={formatRupiah(summary.omset)} icon={Banknote} tone="blue" />
         <StatCard label="Jumlah Nota" value={summary.count} icon={FileText} tone="slate" />
         <StatCard label="Nota Lunas" value={summary.lunas} icon={Receipt} tone="green" />

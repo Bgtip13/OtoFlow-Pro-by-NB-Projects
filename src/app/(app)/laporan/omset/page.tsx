@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, formatDate } from "@/lib/format";
+import { useRequestGuard } from "@/lib/hooks";
 import PageHeader from "@/components/page-header";
 import { FilterBar, PeriodFilter, startOfMonthISO, todayISO } from "@/components/filter-bar";
-import { Badge, DataTable, StatCard, type TableColumn } from "@/components/ui";
+import { Badge, DataTable, Pagination, StatCard, type TableColumn } from "@/components/ui";
 import { Banknote, TrendingUp } from "lucide-react";
+
+const PAGE_SIZE = 50;
 
 const kategoriLabel: Record<string, string> = {
   penjualan: "Penjualan",
@@ -24,26 +27,38 @@ type Row = { tanggal: string; keterangan: string; kategori: string; jumlah: numb
 
 export default function OmsetPage() {
   const supabase = createClient();
+  const guard = useRequestGuard();
+
   const [from, setFrom] = useState(startOfMonthISO());
   const [to, setTo] = useState(todayISO());
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
+  const [page, setPage] = useState(0);
 
   async function load() {
+    const requestId = guard.next();
     setLoading(true);
-    const { data } = await supabase
+
+    const { data, error } = await supabase
       .from("ledgers")
-      .select("*")
+      .select("tanggal, keterangan, kategori, jumlah")
       .eq("tipe", "masuk")
       .gte("tanggal", from)
       .lte("tanggal", to)
       .order("tanggal", { ascending: false })
       .order("created_at", { ascending: false });
-    setRows((data ?? []) as Row[]);
+
+    if (!guard.isCurrent(requestId)) return;
+
+    const list = (data ?? []) as Row[];
+    setRows(list);
+    if (error) console.error(error);
+
     const s: Record<string, number> = {};
-    for (const r of data ?? []) s[r.kategori] = (s[r.kategori] || 0) + r.jumlah;
+    for (const r of list) s[r.kategori] = (s[r.kategori] || 0) + r.jumlah;
     setSummary(s);
+    setPage(0);
     setLoading(false);
   }
 
@@ -53,10 +68,12 @@ export default function OmsetPage() {
   }, [from, to]);
 
   const total = Object.values(summary).reduce((a, b) => a + b, 0);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const columns: TableColumn<Row>[] = [
-    { key: "tanggal", header: "Tanggal", render: (r) => formatDate(r.tanggal) },
-    { key: "keterangan", header: "Keterangan", render: (r) => r.keterangan || "-" },
+    { key: "tanggal", header: "Tanggal", render: (r) => <span className="text-slate-500">{formatDate(r.tanggal)}</span> },
+    { key: "keterangan", header: "Keterangan", render: (r) => <span className="font-medium text-slate-700">{r.keterangan || "-"}</span> },
     {
       key: "kategori",
       header: "Kategori",
@@ -72,7 +89,11 @@ export default function OmsetPage() {
 
   return (
     <div>
-      <PageHeader icon={TrendingUp} title="Omset Penjualan" subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`} />
+      <PageHeader
+        icon={TrendingUp}
+        title="Omset Penjualan"
+        subtitle={`Periode ${formatDate(from)} s/d ${formatDate(to)}`}
+      />
 
       <FilterBar>
         <PeriodFilter
@@ -85,21 +106,32 @@ export default function OmsetPage() {
         />
       </FilterBar>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total Omset" value={formatRupiah(total)} icon={Banknote} tone="blue" />
         {Object.entries(kategoriLabel).map(([k, label]) => (
-          <StatCard key={k} label={label} value={formatRupiah(summary[k] || 0)} icon={TrendingUp} tone={kategoriTone[k] ?? "slate"} />
+          <StatCard
+            key={k}
+            label={label}
+            value={formatRupiah(summary[k] || 0)}
+            icon={TrendingUp}
+            tone={kategoriTone[k] ?? "slate"}
+          />
         ))}
       </div>
 
       <div className="mt-4">
         <DataTable
           columns={columns}
-          rows={rows}
-          rowKey={(r, i) => `${r.tanggal}-${i}`}
+          rows={pageRows}
+          rowKey={(r, i) => `${r.tanggal}-${page}-${i}`}
           loading={loading}
           empty="Tidak ada transaksi pada periode ini."
           emptyIcon={Banknote}
+          footer={
+            rows.length > PAGE_SIZE ? (
+              <Pagination page={page} totalPages={totalPages} total={rows.length} onChange={setPage} />
+            ) : undefined
+          }
         />
       </div>
     </div>

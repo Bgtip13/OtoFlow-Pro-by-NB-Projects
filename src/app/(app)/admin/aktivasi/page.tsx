@@ -5,7 +5,18 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/format";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
-import { Dices, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { FilterBar } from "@/components/filter-bar";
+import {
+  Badge,
+  Button,
+  DataTable,
+  Input,
+  Pagination,
+  StatCard,
+  type TableColumn,
+} from "@/components/ui";
+import { BadgeCheck, Dices, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { RowAction, RowActions } from "@/components/ui";
 
 const PAGE_SIZE = 20;
 
@@ -18,8 +29,7 @@ type Code = {
 };
 
 function randomCode() {
-  const part = () =>
-    Math.random().toString(36).substring(2, 6).toUpperCase();
+  const part = () => Math.random().toString(36).substring(2, 6).toUpperCase();
   return `OTOF-${part()}-${part()}`;
 }
 
@@ -36,7 +46,9 @@ export default function AdminAktivasiPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
       setAllowed(profile?.role === "admin");
@@ -67,14 +79,13 @@ export default function AdminAktivasiPage() {
     }
     setCreating(true);
     const { error } = await supabase.from("activation_codes").insert({ code });
+    setCreating(false);
     if (error) {
       toast.error(error.message);
-      setCreating(false);
       return;
     }
     toast.success(`Kode ${code} berhasil dibuat.`);
     setNewCode("");
-    setCreating(false);
     setPage(0);
     load();
   }
@@ -82,9 +93,8 @@ export default function AdminAktivasiPage() {
   async function handleDelete(c: Code) {
     if (c.used) {
       if (!confirm(`Kode ${c.code} SUDAH DIPAKAI. Hapus tetap?`)) return;
-    } else {
-      if (!confirm(`Hapus kode ${c.code}?`)) return;
-    }
+    } else if (!confirm(`Hapus kode ${c.code}?`)) return;
+
     const { error } = await supabase.from("activation_codes").delete().eq("id", c.id);
     if (error) {
       toast.error(error.message);
@@ -94,73 +104,91 @@ export default function AdminAktivasiPage() {
     load();
   }
 
-  if (allowed === null) return <p className="text-sm text-slate-400">Memeriksa...</p>;
-  if (!allowed) return <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">Akses ditolak. Halaman khusus admin.</p>;
+  if (allowed === null) {
+    return (
+      <div className="animate-fade-in">
+        <div className="skeleton h-11 w-11 rounded-2xl" />
+        <div className="mt-4 skeleton h-40 rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-center text-sm font-medium text-red-600">
+          Akses ditolak. Halaman khusus admin.
+        </div>
+      </div>
+    );
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const aktif = rows.filter((r) => !r.used).length;
+
+  const columns: TableColumn<Code>[] = [
+    { key: "code", header: "Kode", render: (c) => <span className="font-mono text-xs font-bold text-slate-800">{c.code}</span> },
+    {
+      key: "status",
+      header: "Status",
+      render: (c) => (c.used ? <Badge tone="slate">Dipakai</Badge> : <Badge tone="green">Aktif</Badge>),
+    },
+    { key: "created_at", header: "Dibuat", render: (c) => <span className="text-slate-500">{formatDate(c.created_at)}</span> },
+    { key: "used_at", header: "Dipakai", render: (c) => <span className="text-slate-500">{c.used_at ? formatDate(c.used_at) : "-"}</span> },
+    {
+      key: "__aksi",
+      header: "Aksi",
+      align: "right",
+      headerClassName: "text-right",
+      render: (c) => (
+        <RowActions>
+          <RowAction icon={Trash2} tone="red" onClick={() => handleDelete(c)}>
+            Hapus
+          </RowAction>
+        </RowActions>
+      ),
+    },
+  ];
 
   return (
     <div>
-      <PageHeader icon={ShieldCheck} title="Panel Admin — Kode Aktivasi" subtitle={`${total} kode · kode dipakai 1x untuk register`} />
+      <PageHeader
+        icon={ShieldCheck}
+        title="Panel Admin — Kode Aktivasi"
+        subtitle={`${total} kode · setiap kode dipakai 1x untuk registrasi`}
+        badge={<Badge tone="blue">Admin</Badge>}
+      />
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <input
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="Total Kode" value={total} icon={ShieldCheck} tone="blue" />
+        <StatCard label="Kode Aktif" value={aktif} icon={BadgeCheck} tone="green" hint="Di halaman ini" />
+      </div>
+
+      <FilterBar>
+        <Input
           value={newCode}
-          onChange={(e) => setNewCode(e.target.value)}
+          onChange={(e) => setNewCode(e.target.value.toUpperCase())}
           placeholder="Ketik kode atau klik Generate"
-          className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase focus:border-blue-500 focus:outline-none"
+          className="w-full font-mono uppercase sm:w-72"
         />
-        <button onClick={() => setNewCode(randomCode())} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-          <Dices className="h-3.5 w-3.5" /> Generate
-        </button>
-        <button onClick={handleCreate} disabled={creating}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-          <Plus className="h-4 w-4" /> {creating ? "Membuat..." : "Buat Kode"}
-        </button>
-      </div>
+        <Button icon={Dices} size="md" onClick={() => setNewCode(randomCode())}>
+          Generate
+        </Button>
+        <Button icon={Plus} variant="primary" onClick={handleCreate} loading={creating}>
+          {creating ? "Membuat..." : "Buat Kode"}
+        </Button>
+      </FilterBar>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase text-slate-500">
-            <tr>
-              <th className="px-2 py-1.5">Kode</th>
-              <th className="px-2 py-1.5">Status</th>
-              <th className="px-2 py-1.5">Dibuat</th>
-              <th className="px-2 py-1.5">Dipakai</th>
-              <th className="px-2 py-1.5 text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={5} className="px-2 py-4 text-center text-slate-400">Memuat...</td></tr>}
-            {!loading && rows.length === 0 && <tr><td colSpan={5} className="px-2 py-4 text-center text-slate-400">Belum ada kode.</td></tr>}
-            {!loading &&
-              rows.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-2 py-1 font-mono font-semibold">{c.code}</td>
-                  <td className="px-2 py-1">
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                      c.used ? "bg-slate-200 text-slate-600" : "bg-green-100 text-green-700"
-                    }`}>
-                      {c.used ? "DIPAKAI" : "AKTIF"}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1">{formatDate(c.created_at)}</td>
-                  <td className="px-2 py-1">{c.used_at ? formatDate(c.used_at) : "-"}</td>
-                  <td className="px-2 py-1 text-right">
-                    <button onClick={() => handleDelete(c)} className="text-red-600 hover:underline"><Trash2 className="mr-0.5 inline h-3.5 w-3.5 align-text-bottom" />Hapus</button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-        <span>Halaman {page + 1} dari {totalPages} · {total} data</span>
-        <div className="flex gap-2">
-          <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">← Sebelumnya</button>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 disabled:opacity-40">Berikutnya →</button>
-        </div>
+      <div className="mt-4">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(c) => c.id}
+          loading={loading}
+          empty="Belum ada kode aktivasi."
+          emptyIcon={ShieldCheck}
+          footer={<Pagination page={page} totalPages={totalPages} total={total} onChange={setPage} />}
+        />
       </div>
     </div>
   );

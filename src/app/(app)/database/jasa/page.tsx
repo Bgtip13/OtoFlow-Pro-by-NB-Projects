@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah } from "@/lib/format";
+import { useDebouncedValue, useRequestGuard } from "@/lib/hooks";
+import { downloadExcel, readExcelRows } from "@/lib/excel";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
 import { FilterBar, SearchInput } from "@/components/filter-bar";
@@ -20,7 +22,6 @@ import {
   type TableColumn,
 } from "@/components/ui";
 import { Cog, Download, FileSpreadsheet, Plus, Upload } from "lucide-react";
-import * as XLSX from "xlsx";
 
 type Service = {
   id: string;
@@ -41,10 +42,13 @@ const emptyForm = {
 export default function JasaPage() {
   const supabase = createClient();
   const toast = useToast();
+  const guard = useRequestGuard();
+
   const [items, setItems] = useState<Service[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [loading, setLoading] = useState(true);
 
   const [showForm, setShowForm] = useState(false);
@@ -54,14 +58,18 @@ export default function JasaPage() {
 
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   async function loadItems() {
+    const requestId = guard.next();
     setLoading(true);
+
     let query = supabase.from("services").select("*", { count: "exact" }).order("nama");
-    const s = search.trim();
-    if (s) query = query.ilike("nama", `%${s}%`);
-    const { data, count } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    const s = debouncedSearch.trim();
+    if (s) query = query.ilike("nama", `%${s.replace(/[",()]/g, " ")}%`);
+
+    const { data, count, error } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (!guard.isCurrent(requestId)) return;
+    if (error) toast.error(`Gagal memuat jasa: ${error.message}`);
     if (data) {
       setItems(data as Service[]);
       setTotal(count ?? 0);
@@ -72,7 +80,7 @@ export default function JasaPage() {
   useEffect(() => {
     loadItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search]);
+  }, [page, debouncedSearch]);
 
   function komisiLabel(s: Service) {
     return s.komisi_tipe === "persen" ? `${s.komisi_nilai}%` : formatRupiah(s.komisi_nilai);
@@ -97,7 +105,6 @@ export default function JasaPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
 
     const payload = {
       nama: form.nama.trim(),
@@ -108,29 +115,20 @@ export default function JasaPage() {
 
     if (!payload.nama) {
       toast.error("Nama jasa wajib diisi.");
-      setSaving(false);
       return;
     }
 
-    if (editing) {
-      const { error } = await supabase.from("services").update(payload).eq("id", editing.id);
-      if (error) {
-        toast.error(error.message);
-        setSaving(false);
-        return;
-      }
-      toast.success("Jasa berhasil diperbarui.");
-    } else {
-      const { error } = await supabase.from("services").insert(payload);
-      if (error) {
-        toast.error(error.message);
-        setSaving(false);
-        return;
-      }
-      toast.success("Jasa baru berhasil ditambahkan.");
-    }
-
+    setSaving(true);
+    const { error } = editing
+      ? await supabase.from("services").update(payload).eq("id", editing.id)
+      : await supabase.from("services").insert(payload);
     setSaving(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(editing ? "Jasa berhasil diperbarui." : "Jasa baru berhasil ditambahkan.");
     setShowForm(false);
     loadItems();
   }
@@ -146,66 +144,69 @@ export default function JasaPage() {
     loadItems();
   }
 
-  function downloadTemplate() {
-    const ws = XLSX.utils.json_to_sheet([
-      { "Nama Jasa": "Servis Ringan", Harga: 50000, "Tipe Komisi": "nominal", "Nilai Komisi": 10000 },
-      { "Nama Jasa": "Ganti Oli", Harga: 25000, "Tipe Komisi": "persen", "Nilai Komisi": 20 },
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Jasa");
-    XLSX.writeFile(wb, "format-impor-jasa.xlsx");
+  async function downloadTemplate() {
+    try {
+      await downloadExcel(
+        ["Nama Jasa", "Harga", "Tipe Komisi", "Nilai Komisi"],
+        [
+          ["Servis Ringan", 50000, "nominal", 10000],
+          ["Ganti Oli", 25000, "persen", 20],
+        ],
+        "Jasa",
+        "format-impor-jasa.xlsx"
+      );
+    } catch {
+      toast.error("Gagal membuat file contoh.");
+    }
   }
 
   async function handleImportFile(file: File) {
     setImporting(true);
+    try {
+      const rows = await readExcelRows(file);
 
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
+      const parsed: { nama: string; harga: number; komisi_tipe: "persen" | "nominal"; komisi_nilai: number }[] = [];
 
-    const parsed: {
-      nama: string; harga: number; komisi_tipe: "persen" | "nominal"; komisi_nilai: number;
-    }[] = [];
+      for (const r of rows) {
+        const nama = String(r["Nama Jasa"] ?? "").trim();
+        if (!nama) continue;
+        const rawTipe = String(r["Tipe Komisi"] ?? "").toLowerCase();
+        parsed.push({
+          nama,
+          harga: Number(r["Harga"]) || 0,
+          komisi_tipe: rawTipe === "persen" || rawTipe === "%" ? "persen" : "nominal",
+          komisi_nilai: Number(r["Nilai Komisi"]) || 0,
+        });
+      }
 
-    for (const r of rows) {
-      const nama = String(r["Nama Jasa"] ?? "").trim();
-      if (!nama) continue;
-      const rawTipe = String(r["Tipe Komisi"] ?? "").toLowerCase();
-      parsed.push({
-        nama,
-        harga: Number(r["Harga"]) || 0,
-        komisi_tipe: rawTipe === "persen" || rawTipe === "%" ? "persen" : "nominal",
-        komisi_nilai: Number(r["Nilai Komisi"]) || 0,
-      });
-    }
+      if (parsed.length === 0) {
+        toast.error("File kosong atau format tidak sesuai.");
+        return;
+      }
 
-    if (parsed.length === 0) {
-      toast.error("File kosong atau format tidak sesuai.");
+      const { error } = await supabase.from("services").upsert(parsed, { onConflict: "nama" });
+      if (error) {
+        toast.error(`Gagal: ${error.message}`);
+        return;
+      }
+
+      toast.success(`Import selesai! ${parsed.length} jasa diproses.`);
+      setShowImport(false);
+      setPage(0);
+      loadItems();
+    } catch (e: any) {
+      toast.error(`Gagal membaca file: ${e.message}`);
+    } finally {
       setImporting(false);
-      return;
     }
-
-    const { error } = await supabase.from("services").upsert(parsed, { onConflict: "nama" });
-
-    if (error) {
-      toast.error(`Gagal: ${error.message}`);
-      setImporting(false);
-      return;
-    }
-
-    toast.success(`Import selesai! ${parsed.length} jasa diproses.`);
-    setImporting(false);
-    setShowImport(false);
-    loadItems();
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const columns: TableColumn<Service>[] = [
-    { key: "nama", header: "Nama Jasa", render: (r) => <span className="font-medium text-slate-700">{r.nama}</span> },
+    { key: "nama", header: "Nama Jasa", render: (r) => <span className="font-semibold text-slate-800">{r.nama}</span> },
     { key: "harga", header: "Harga", align: "right", render: (r) => formatRupiah(r.harga) },
-    { key: "komisi", header: "Komisi Mekanik", align: "right", render: (r) => <span className="text-amber-600">{komisiLabel(r)}</span> },
+    { key: "komisi", header: "Komisi Mekanik", align: "right", render: (r) => <span className="font-medium text-amber-600">{komisiLabel(r)}</span> },
     {
       key: "__aksi",
       header: "Aksi",
@@ -227,7 +228,7 @@ export default function JasaPage() {
 
   return (
     <div>
-      <PageHeader icon={Cog} title="Database Jasa" subtitle={`${total} jasa`}>
+      <PageHeader icon={Cog} title="Database Jasa" subtitle={`${total} jenis jasa`}>
         <Button icon={Download} size="sm" onClick={downloadTemplate}>
           Format Impor
         </Button>
@@ -239,8 +240,8 @@ export default function JasaPage() {
         </Button>
       </PageHeader>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <StatCard label="Total Jasa" value={total} icon={Cog} tone="slate" />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="Total Jasa" value={total} icon={Cog} tone="blue" />
       </div>
 
       <FilterBar>
@@ -266,7 +267,6 @@ export default function JasaPage() {
         />
       </div>
 
-      {/* MODAL FORM */}
       <PageModal
         open={showForm}
         onClose={() => setShowForm(false)}
@@ -275,7 +275,7 @@ export default function JasaPage() {
         footer={
           <>
             <Button onClick={() => setShowForm(false)}>Batal</Button>
-            <Button form="jasa-form" type="submit" variant="primary" disabled={saving}>
+            <Button form="jasa-form" type="submit" variant="primary" loading={saving}>
               {saving ? "Menyimpan..." : "Simpan"}
             </Button>
           </>
@@ -306,30 +306,32 @@ export default function JasaPage() {
         </form>
       </PageModal>
 
-      {/* MODAL IMPORT */}
       <PageModal
         open={showImport}
         onClose={() => setShowImport(false)}
         title="Impor Excel"
-        subtitle={`Gunakan file dari tombol "Format Impor". Jasa dengan nama sama akan diperbarui (tidak dobel).`}
+        subtitle='Gunakan file dari tombol "Format Impor". Jasa dengan nama sama akan diperbarui (tidak dobel).'
         footer={<Button onClick={() => setShowImport(false)}>Tutup</Button>}
       >
-        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/50">
+        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/60">
           <input
-            ref={fileRef}
             type="file"
             accept=".xlsx,.xls"
             className="hidden"
+            disabled={importing}
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) handleImportFile(f);
             }}
           />
-          <FileSpreadsheet className="h-7 w-7 text-blue-500" />
-          <span className="text-sm font-semibold text-blue-600">Pilih File Excel</span>
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+            <FileSpreadsheet className="h-5 w-5" />
+          </span>
+          <span className="text-sm font-semibold text-blue-600">
+            {importing ? "Memproses file..." : "Pilih File Excel"}
+          </span>
           <span className="text-xs text-slate-400">.xlsx atau .xls</span>
         </label>
-        {importing && <p className="mt-3 text-sm text-slate-500">Memproses file...</p>}
       </PageModal>
     </div>
   );

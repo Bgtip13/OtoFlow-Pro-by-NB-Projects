@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, todayISO } from "@/lib/format";
+import { useRequestGuard } from "@/lib/hooks";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
 import { FilterBar, SelectFilter } from "@/components/filter-bar";
@@ -40,6 +41,8 @@ type StatusFilter = "all" | "belum_dibayar" | "lunas";
 export default function KomisiPage() {
   const supabase = createClient();
   const toast = useToast();
+  const guard = useRequestGuard();
+
   const [rows, setRows] = useState<Comm[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -53,24 +56,33 @@ export default function KomisiPage() {
   const [paying, setPaying] = useState(false);
 
   async function load() {
+    const requestId = guard.next();
     setLoading(true);
+
     let query = supabase
       .from("mechanic_commissions")
       .select("*, service_invoices(no_nota, customer_name), mechanics(nama)", { count: "exact" })
       .order("created_at", { ascending: false });
     if (filter !== "all") query = query.eq("status", filter);
-    const { data, count } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-    if (data) {
-      setRows(data as Comm[]);
-      setTotal(count ?? 0);
+
+    const [listRes, openRes] = await Promise.all([
+      query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
+      supabase.from("mechanic_commissions").select("jumlah").eq("status", "belum_dibayar"),
+    ]);
+
+    if (!guard.isCurrent(requestId)) return;
+
+    if (listRes.data) {
+      setRows(listRes.data as Comm[]);
+      setTotal(listRes.count ?? 0);
     }
+    if (listRes.error) toast.error(`Gagal memuat: ${listRes.error.message}`);
 
-    const { data: open } = await supabase.from("mechanic_commissions").select("jumlah").eq("status", "belum_dibayar");
+    const open = openRes.data ?? [];
     setOutstanding({
-      jumlah: (open ?? []).reduce((s: number, r: any) => s + r.jumlah, 0),
-      count: open?.length ?? 0,
+      jumlah: open.reduce((s: number, r: any) => s + r.jumlah, 0),
+      count: open.length,
     });
-
     setLoading(false);
   }
 
@@ -124,9 +136,9 @@ export default function KomisiPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const columns: TableColumn<Comm>[] = [
-    { key: "no_nota", header: "No Nota Servis", render: (c) => <span className="font-mono font-semibold text-slate-700">{c.service_invoices?.no_nota ?? "-"}</span> },
-    { key: "customer", header: "Pelanggan", render: (c) => c.service_invoices?.customer_name ?? "-" },
-    { key: "mechanic", header: "Mekanik", render: (c) => c.mechanics?.nama ?? "-" },
+    { key: "no_nota", header: "No Nota Servis", render: (c) => <span className="font-mono text-xs font-semibold text-slate-700">{c.service_invoices?.no_nota ?? "-"}</span> },
+    { key: "customer", header: "Pelanggan", render: (c) => <span className="text-slate-500">{c.service_invoices?.customer_name ?? "-"}</span> },
+    { key: "mechanic", header: "Mekanik", render: (c) => <span className="font-medium text-slate-700">{c.mechanics?.nama ?? "-"}</span> },
     { key: "jumlah", header: "Komisi", align: "right", render: (c) => <span className="font-semibold text-slate-800">{formatRupiah(c.jumlah)}</span> },
     {
       key: "status",
@@ -154,7 +166,7 @@ export default function KomisiPage() {
 
   return (
     <div>
-      <PageHeader icon={HandCoins} title="Pembayaran Komisi Mekanik" subtitle={`${total} komisi`} />
+      <PageHeader icon={HandCoins} title="Pembayaran Komisi Mekanik" subtitle={`${total} komisi tercatat`} />
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <StatCard label="Komisi Belum Dibayar" value={formatRupiah(outstanding.jumlah)} icon={Wallet} tone="amber" />
@@ -199,7 +211,7 @@ export default function KomisiPage() {
         footer={
           <>
             <Button onClick={() => setPayTarget(null)}>Batal</Button>
-            <Button form="komisi-form" type="submit" variant="primary" disabled={paying}>
+            <Button form="komisi-form" type="submit" variant="primary" loading={paying}>
               {paying ? "Memproses..." : "Bayar & Catat"}
             </Button>
           </>
@@ -207,8 +219,11 @@ export default function KomisiPage() {
       >
         {payTarget && (
           <form id="komisi-form" onSubmit={handlePay} className="space-y-3">
+            <div className="rounded-xl bg-slate-50 px-3 py-2.5 text-sm text-slate-600 ring-1 ring-inset ring-slate-200">
+              Nilai komisi tercatat: <b>{formatRupiah(payTarget.jumlah)}</b>
+            </div>
             <Field label="Jumlah (Rp)">
-              <Input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)} />
+              <Input type="number" value={payJumlah} onChange={(e) => setPayJumlah(e.target.value)} autoFocus />
             </Field>
             <Field label="Catatan">
               <Input value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder="Opsional" />

@@ -1,13 +1,27 @@
+// Formatter dibuat sekali saja (Intl.NumberFormat mahal jika dibuat berulang
+// di dalam tabel yang merender ratusan baris).
+const rupiahFormatter = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+const numberFormatter = new Intl.NumberFormat("id-ID", {
+  maximumFractionDigits: 2,
+});
+
 export function formatRupiah(n: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(n || 0);
+  return rupiahFormatter.format(Number.isFinite(n) ? n : 0);
+}
+
+export function formatNumber(n: number): string {
+  return numberFormatter.format(Number.isFinite(n) ? n : 0);
 }
 
 // Format tanggal SELALU dd/mm/yyyy (tidak bergantung locale browser)
-export function formatDate(d: string | Date): string {
+export function formatDate(d: string | Date | null | undefined): string {
+  if (!d) return "-";
   let date: Date;
   if (typeof d === "string") {
     // tanggal murni "YYYY-MM-DD" -> anggap waktu lokal, hindari geser 1 hari

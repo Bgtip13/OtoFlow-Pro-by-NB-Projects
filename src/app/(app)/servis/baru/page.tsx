@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { formatRupiah, todayISO } from "@/lib/format";
 import { useToast } from "@/components/toast";
 import { generateNoNota } from "@/lib/nota";
-import { prepareServiceForResave } from "@/lib/invoice-utils";
+import { prepareServiceForResave, recordServiceIncome } from "@/lib/invoice-utils";
+import { Badge, Button, Card, CardTitle, Input, Select } from "@/components/ui";
+import {
+  ArrowLeft, Bike, HandCoins, Package, Plus, Receipt, Search, Trash2, User, UserPlus, Wrench,
+} from "lucide-react";
 
 type ServiceCustomer = { id: string; nama: string; no_hp: string; alamat: string; jenis_motor: string; plat_nomor: string };
 type Jasa = { id: string; nama: string; harga: number; komisi_tipe: "persen" | "nominal"; komisi_nilai: number };
@@ -32,7 +36,9 @@ export default function ServisBaruPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loadedNo, setLoadedNo] = useState("");
   const [noNota, setNoNota] = useState("");
+  const [invoiceStatus, setInvoiceStatus] = useState<"pengerjaan" | "selesai">("pengerjaan");
   const [hppMethod, setHppMethod] = useState<"average" | "last">("average");
+  const [ready, setReady] = useState(false);
 
   const [customer, setCustomer] = useState<ServiceCustomer | null>(null);
   const [custSearch, setCustSearch] = useState("");
@@ -48,11 +54,15 @@ export default function ServisBaruPage() {
   const [itemSearch, setItemSearch] = useState("");
   const [jasaResults, setJasaResults] = useState<Jasa[]>([]);
   const [barangResults, setBarangResults] = useState<Item[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [headerDiskon, setHeaderDiskon] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const searchReq = useRef(0);
+  const custReq = useRef(0);
 
   useEffect(() => {
     (async () => {
@@ -60,22 +70,28 @@ export default function ServisBaruPage() {
       const editId = q.get("id");
       if (editId) setEditingId(editId);
 
-      const { data: s } = await supabase.from("settings").select("hpp_method").eq("id", 1).maybeSingle();
+      const [{ data: s }, { data: mek }] = await Promise.all([
+        supabase.from("settings").select("hpp_method").eq("id", 1).maybeSingle(),
+        supabase.from("mechanics").select("id, nama").order("nama"),
+      ]);
       if (s) setHppMethod(s.hpp_method);
-
-      const { data: mek } = await supabase.from("mechanics").select("id, nama").order("nama");
       if (mek) setMechanics(mek);
 
       if (editId) {
-        const { data: inv } = await supabase.from("service_invoices").select("*").eq("id", editId).single();
+        const { data: inv } = await supabase.from("service_invoices").select("*").eq("id", editId).maybeSingle();
         if (inv) {
           setLoadedNo(inv.no_nota);
           setNoNota(inv.no_nota);
+          setInvoiceStatus(inv.status === "selesai" ? "selesai" : "pengerjaan");
           setHeaderDiskon(String(inv.subtotal > 0 ? ((inv.diskon || 0) / inv.subtotal) * 100 : 0));
           setNote(inv.note || "");
           if (inv.mechanic_id) setMechanicId(inv.mechanic_id);
           if (inv.customer_id) {
-            const { data: c } = await supabase.from("service_customers").select("*").eq("id", inv.customer_id).single();
+            const { data: c } = await supabase
+              .from("service_customers")
+              .select("*")
+              .eq("id", inv.customer_id)
+              .maybeSingle();
             if (c) setCustomer(c as ServiceCustomer);
           }
           const { data: det } = await supabase
@@ -110,19 +126,25 @@ export default function ServisBaruPage() {
         const no = await generateNoNota(supabase, "SRV");
         setNoNota(no);
       }
+      setReady(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cari pelanggan servis
   useEffect(() => {
-    if (!custSearch.trim()) { setCustResults([]); return; }
+    if (!custSearch.trim()) {
+      setCustResults([]);
+      return;
+    }
     const t = setTimeout(async () => {
+      const id = ++custReq.current;
       const { data } = await supabase
         .from("service_customers")
         .select("*")
         .ilike("nama", `%${custSearch.trim()}%`)
         .limit(8);
+      if (id !== custReq.current) return;
       if (data) setCustResults(data as ServiceCustomer[]);
     }, 300);
     return () => clearTimeout(t);
@@ -130,16 +152,30 @@ export default function ServisBaruPage() {
 
   // Cari jasa / barang sesuai tab
   useEffect(() => {
-    if (!itemSearch.trim()) { setJasaResults([]); setBarangResults([]); return; }
+    if (!itemSearch.trim()) {
+      setJasaResults([]);
+      setBarangResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
     const t = setTimeout(async () => {
-      const like = `%${itemSearch.trim()}%`;
+      const id = ++searchReq.current;
+      const like = `%${itemSearch.trim().replace(/[",()]/g, " ")}%`;
       if (pickerTab === "jasa") {
         const { data } = await supabase.from("services").select("*").ilike("nama", like).limit(8);
-        if (data) setJasaResults(data as Jasa[]);
+        if (id !== searchReq.current) return;
+        setJasaResults((data ?? []) as Jasa[]);
       } else {
-        const { data } = await supabase.from("items").select("*").or(`kode.ilike.${like},nama.ilike.${like}`).limit(8);
-        if (data) setBarangResults(data as Item[]);
+        const { data } = await supabase
+          .from("items")
+          .select("id, kode, nama, harga_jual, harga_beli, avg_harga_beli, stok")
+          .or(`kode.ilike."${like}",nama.ilike."${like}"`)
+          .limit(8);
+        if (id !== searchReq.current) return;
+        setBarangResults((data ?? []) as Item[]);
       }
+      setSearching(false);
     }, 300);
     return () => clearTimeout(t);
   }, [itemSearch, pickerTab, supabase]);
@@ -154,10 +190,13 @@ export default function ServisBaruPage() {
     setCart((prev) => {
       const ex = prev.find((l) => l.key === key);
       if (ex) return prev.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l));
-      return [...prev, {
-        key, type: "jasa" as const, ref_id: j.id, nama: j.nama, qty: 1,
-        harga: j.harga, diskon: 0, hpp: 0, komisi: komisiJasa(j), stok: 0,
-      }];
+      return [
+        ...prev,
+        {
+          key, type: "jasa" as const, ref_id: j.id, nama: j.nama, qty: 1,
+          harga: j.harga, diskon: 0, hpp: 0, komisi: komisiJasa(j), stok: 0,
+        },
+      ];
     });
     setItemSearch("");
     setJasaResults([]);
@@ -168,12 +207,15 @@ export default function ServisBaruPage() {
     setCart((prev) => {
       const ex = prev.find((l) => l.key === key);
       if (ex) return prev.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l));
-      return [...prev, {
-        key, type: "barang" as const, ref_id: it.id, nama: it.nama, qty: 1,
-        harga: it.harga_jual, diskon: 0,
-        hpp: hppMethod === "last" ? it.harga_beli : it.avg_harga_beli,
-        komisi: 0, stok: it.stok,
-      }];
+      return [
+        ...prev,
+        {
+          key, type: "barang" as const, ref_id: it.id, nama: it.nama, qty: 1,
+          harga: it.harga_jual, diskon: 0,
+          hpp: hppMethod === "last" ? it.harga_beli : it.avg_harga_beli,
+          komisi: 0, stok: it.stok,
+        },
+      ];
     });
     setItemSearch("");
     setBarangResults([]);
@@ -195,12 +237,11 @@ export default function ServisBaruPage() {
   const komisiTotal = cart.reduce((s, l) => s + l.komisi * l.qty, 0);
 
   async function saveCustomer() {
-    setSavingCust(true);
     if (!newCust.nama.trim()) {
       toast.error("Nama pelanggan wajib diisi.");
-      setSavingCust(false);
       return;
     }
+    setSavingCust(true);
     const { data, error } = await supabase
       .from("service_customers")
       .insert({
@@ -212,9 +253,9 @@ export default function ServisBaruPage() {
       })
       .select()
       .single();
+    setSavingCust(false);
     if (error) {
       toast.error(error.message);
-      setSavingCust(false);
       return;
     }
     setCustomer(data as ServiceCustomer);
@@ -223,7 +264,6 @@ export default function ServisBaruPage() {
     setCustSearch("");
     setCustResults([]);
     toast.success("Pelanggan servis baru ditambahkan.");
-    setSavingCust(false);
   }
 
   async function handleSave() {
@@ -235,7 +275,6 @@ export default function ServisBaruPage() {
       toast.error("Pilih mekanik terlebih dahulu.");
       return;
     }
-    // Validasi stok sparepart
     for (const l of cart) {
       if (l.type === "barang" && l.qty > l.stok) {
         toast.error(`Stok "${l.nama}" tidak cukup. Tersisa ${l.stok}.`);
@@ -247,11 +286,14 @@ export default function ServisBaruPage() {
     try {
       let invId: string;
       let no: string;
+      let hasPaidCommission = false;
       const mek = mechanics.find((m) => m.id === mechanicId);
 
       if (editingId) {
-        await prepareServiceForResave(supabase, editingId);
-        const { data: inv, error: errUpd } = await supabase
+        const prep = await prepareServiceForResave(supabase, editingId);
+        hasPaidCommission = prep.hasPaidCommission;
+
+        const { error: errUpd } = await supabase
           .from("service_invoices")
           .update({
             customer_id: customer?.id ?? null,
@@ -264,9 +306,7 @@ export default function ServisBaruPage() {
             komisi_total: komisiTotal,
             note,
           })
-          .eq("id", editingId)
-          .select()
-          .single();
+          .eq("id", editingId);
         if (errUpd) throw errUpd;
         invId = editingId;
         no = loadedNo;
@@ -295,9 +335,10 @@ export default function ServisBaruPage() {
         no = noNota;
       }
 
-      // Detail + stok sparepart
+      const mutations: Record<string, unknown>[] = [];
+
       for (const l of cart) {
-        await supabase.from("invoice_details").insert({
+        const { error: errD } = await supabase.from("invoice_details").insert({
           invoice_type: "servis",
           invoice_id: invId,
           item_type: l.type,
@@ -310,17 +351,20 @@ export default function ServisBaruPage() {
           subtotal: l.harga * l.qty * (1 - l.diskon / 100),
           komisi: l.komisi,
         });
+        if (errD) throw errD;
 
         if (l.type === "barang") {
           const { data: cur } = await supabase.from("items").select("stok").eq("id", l.ref_id).single();
-          const newStok = (cur?.stok ?? 0) - l.qty;
-          await supabase.from("items").update({ stok: newStok }).eq("id", l.ref_id);
-          await supabase.from("stock_mutations").insert({
+          const before = cur?.stok ?? 0;
+          const newStok = before - l.qty;
+          const { error: errS } = await supabase.from("items").update({ stok: newStok }).eq("id", l.ref_id);
+          if (errS) throw errS;
+          mutations.push({
             item_id: l.ref_id,
             tanggal: todayISO(),
             jenis: "keluar",
             qty: l.qty,
-            stok_sebelum: cur?.stok ?? 0,
+            stok_sebelum: before,
             stok_sesudah: newStok,
             ref_type: "service_invoices",
             ref_id: invId,
@@ -329,13 +373,23 @@ export default function ServisBaruPage() {
         }
       }
 
-      // Komisi mekanik (belum dibayar — dibayar lewat menu Pembayaran Komisi)
-      await supabase.from("mechanic_commissions").insert({
-        service_invoice_id: invId,
-        mechanic_id: mechanicId,
-        jumlah: komisiTotal,
-        status: "belum_dibayar",
-      });
+      if (mutations.length > 0) await supabase.from("stock_mutations").insert(mutations);
+
+      // Komisi mekanik — jangan buat ulang jika komisi sudah pernah dibayar
+      if (!hasPaidCommission) {
+        const { error: errKom } = await supabase.from("mechanic_commissions").insert({
+          service_invoice_id: invId,
+          mechanic_id: mechanicId,
+          jumlah: komisiTotal,
+          status: "belum_dibayar",
+        });
+        if (errKom) throw errKom;
+      }
+
+      // Nota yang sudah selesai tetap harus punya catatan pemasukan di jurnal
+      if (invoiceStatus === "selesai") {
+        await recordServiceIncome(supabase, invId, total, no);
+      }
 
       toast.success(`Nota servis ${no} berhasil ${editingId ? "diperbarui" : "dibuat"}.`);
       router.push(`/servis/${invId}`);
@@ -345,144 +399,211 @@ export default function ServisBaruPage() {
     }
   }
 
+  if (!ready) {
+    return (
+      <div className="animate-fade-in space-y-3">
+        <div className="skeleton h-9 w-56" />
+        <div className="grid gap-3 lg:grid-cols-3">
+          <div className="skeleton h-72 rounded-2xl lg:col-span-2" />
+          <div className="skeleton h-72 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            {editingId ? "Edit Nota Servis" : "Nota Servis"}
-          </h1>
-          <p className="text-sm text-slate-500">No nota: <span className="font-mono font-semibold text-blue-600">{noNota}</span></p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push("/servis")}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+            aria-label="Kembali"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div>
+            <h1 className="text-[22px] font-bold leading-tight tracking-tight text-slate-900">
+              {editingId ? "Edit Nota Servis" : "Nota Servis Baru"}
+            </h1>
+            <p className="text-[13px] text-slate-500">
+              No nota: <span className="font-mono font-semibold text-blue-600">{noNota}</span>
+            </p>
+          </div>
         </div>
-        <button onClick={() => router.push("/servis")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-          ← Kembali
-        </button>
+        <div className="flex items-center gap-2">
+          {editingId && <Badge tone="amber">Mode Edit</Badge>}
+          <Badge tone={invoiceStatus === "selesai" ? "green" : "blue"}>
+            {invoiceStatus === "selesai" ? "Selesai" : "Pengerjaan"}
+          </Badge>
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {/* KOLOM KIRI */}
-        <div className="space-y-4 lg:col-span-2">
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <div className="space-y-3 lg:col-span-2">
           {/* Pelanggan */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-700">Pelanggan Servis</h2>
-              {customer ? (
-                <button onClick={() => setCustomer(null)} className="text-xs text-red-600 hover:underline">
-                  Ganti ({customer.nama})
-                </button>
-              ) : (
-                <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Default: Umum</span>
-              )}
-            </div>
+          <Card>
+            <CardTitle
+              icon={Bike}
+              right={
+                customer ? (
+                  <button onClick={() => setCustomer(null)} className="text-xs font-semibold text-red-600 hover:underline">
+                    Ganti ({customer.nama})
+                  </button>
+                ) : (
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    Default: Umum
+                  </span>
+                )
+              }
+            >
+              Pelanggan Servis
+            </CardTitle>
 
             {!customer && custMode === "search" && (
               <div className="mt-3">
-                <input
-                  value={custSearch}
-                  onChange={(e) => setCustSearch(e.target.value)}
-                  placeholder="Cari nama pelanggan..."
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={custSearch}
+                    onChange={(e) => setCustSearch(e.target.value)}
+                    placeholder="Cari nama pelanggan / plat nomor..."
+                    className="pl-9"
+                  />
+                </div>
                 {custResults.length > 0 && (
-                  <ul className="mt-2 rounded-lg border border-slate-200">
+                  <ul className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     {custResults.map((c) => (
                       <li key={c.id}>
                         <button
-                          onClick={() => { setCustomer(c); setCustSearch(""); setCustResults([]); }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                          onClick={() => {
+                            setCustomer(c);
+                            setCustSearch("");
+                            setCustResults([]);
+                          }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-slate-50"
                         >
-                          <span className="font-medium">{c.nama}</span>
-                          <span className="ml-2 text-xs text-slate-400">{c.plat_nomor} · {c.jenis_motor}</span>
+                          <span className="font-medium text-slate-700">{c.nama}</span>
+                          <span className="shrink-0 text-xs text-slate-400">
+                            {c.plat_nomor} · {c.jenis_motor}
+                          </span>
                         </button>
                       </li>
                     ))}
                   </ul>
                 )}
-                <button onClick={() => setCustMode("new")} className="mt-2 text-xs font-semibold text-blue-600 hover:underline">
-                  + Pelanggan tidak ada di database? Daftarkan
+                <button
+                  onClick={() => setCustMode("new")}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Pelanggan belum terdaftar? Daftarkan
                 </button>
               </div>
             )}
 
             {!customer && custMode === "new" && (
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <input value={newCust.nama} onChange={(e) => setNewCust({ ...newCust, nama: e.target.value })} placeholder="Nama *"
-                  className="col-span-2 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                <input value={newCust.no_hp} onChange={(e) => setNewCust({ ...newCust, no_hp: e.target.value })} placeholder="No HP"
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                <input value={newCust.jenis_motor} onChange={(e) => setNewCust({ ...newCust, jenis_motor: e.target.value })} placeholder="Jenis motor"
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                <input value={newCust.plat_nomor} onChange={(e) => setNewCust({ ...newCust, plat_nomor: e.target.value })} placeholder="Plat nomor"
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                <input value={newCust.alamat} onChange={(e) => setNewCust({ ...newCust, alamat: e.target.value })} placeholder="Alamat"
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                <div className="col-span-2 flex gap-2">
-                  <button onClick={saveCustomer} disabled={savingCust} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                <Input
+                  value={newCust.nama}
+                  onChange={(e) => setNewCust({ ...newCust, nama: e.target.value })}
+                  placeholder="Nama *"
+                  className="col-span-2"
+                />
+                <Input value={newCust.no_hp} onChange={(e) => setNewCust({ ...newCust, no_hp: e.target.value })} placeholder="No HP" />
+                <Input value={newCust.jenis_motor} onChange={(e) => setNewCust({ ...newCust, jenis_motor: e.target.value })} placeholder="Jenis motor" />
+                <Input value={newCust.plat_nomor} onChange={(e) => setNewCust({ ...newCust, plat_nomor: e.target.value })} placeholder="Plat nomor" />
+                <Input value={newCust.alamat} onChange={(e) => setNewCust({ ...newCust, alamat: e.target.value })} placeholder="Alamat" />
+                <div className="col-span-2 flex gap-2 pt-1">
+                  <Button variant="primary" size="sm" onClick={saveCustomer} loading={savingCust}>
                     {savingCust ? "Menyimpan..." : "Simpan & Pilih"}
-                  </button>
-                  <button onClick={() => setCustMode("search")} className="rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50">Batal</button>
+                  </Button>
+                  <Button size="sm" onClick={() => setCustMode("search")}>
+                    Batal
+                  </Button>
                 </div>
               </div>
             )}
 
             {customer && (
-              <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                <span className="font-semibold">{customer.nama}</span>
+              <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-sm ring-1 ring-inset ring-slate-100">
+                <span className="font-semibold text-slate-800">{customer.nama}</span>
                 <span className="ml-2 text-xs text-slate-400">
                   {customer.no_hp} · {customer.jenis_motor} · {customer.plat_nomor}
                 </span>
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Mekanik */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-700">Mekanik *</h2>
-            <select
+          <Card>
+            <CardTitle icon={User}>Mekanik Penanggung Jawab</CardTitle>
+            <Select
               value={mechanicId}
               onChange={(e) => setMechanicId(e.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              className="mt-3 w-full"
             >
               <option value="">-- Pilih Mekanik --</option>
               {mechanics.map((m) => (
-                <option key={m.id} value={m.id}>{m.nama}</option>
+                <option key={m.id} value={m.id}>
+                  {m.nama}
+                </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Card>
 
-          {/* Pilih Jasa / Sparepart */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex gap-2">
+          {/* Pilih jasa / sparepart */}
+          <Card>
+            <CardTitle icon={Wrench} hint="Pilih tab lalu klik hasil pencarian">
+              Pilih Jasa / Sparepart
+            </CardTitle>
+            <div className="mt-3 flex gap-1 rounded-xl bg-slate-100 p-1">
               <button
-                onClick={() => { setPickerTab("jasa"); setItemSearch(""); }}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold ${
-                  pickerTab === "jasa" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-600"
+                onClick={() => {
+                  setPickerTab("jasa");
+                  setItemSearch("");
+                }}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  pickerTab === "jasa" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 Jasa
               </button>
               <button
-                onClick={() => { setPickerTab("barang"); setItemSearch(""); }}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold ${
-                  pickerTab === "barang" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-600"
+                onClick={() => {
+                  setPickerTab("barang");
+                  setItemSearch("");
+                }}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  pickerTab === "barang" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 Sparepart
               </button>
             </div>
-            <input
-              value={itemSearch}
-              onChange={(e) => setItemSearch(e.target.value)}
-              placeholder={pickerTab === "jasa" ? "Cari nama jasa..." : "Cari kode / nama sparepart..."}
-              className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
+
+            <div className="relative mt-3">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+                placeholder={pickerTab === "jasa" ? "Cari nama jasa..." : "Cari kode / nama sparepart..."}
+                className="pl-9"
+              />
+            </div>
+
+            {searching && itemSearch.trim() && <p className="mt-2 text-xs text-slate-400">Mencari…</p>}
+
             {pickerTab === "jasa" && jasaResults.length > 0 && (
-              <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200">
+              <ul className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                 {jasaResults.map((j) => (
                   <li key={j.id}>
-                    <button onClick={() => addJasa(j)} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50">
-                      <span className="font-medium">{j.nama}</span>
-                      <span className="text-xs text-slate-500">
+                    <button
+                      onClick={() => addJasa(j)}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-blue-50/60"
+                    >
+                      <span className="font-medium text-slate-700">{j.nama}</span>
+                      <span className="shrink-0 text-xs text-slate-500">
                         {formatRupiah(j.harga)} · komisi{" "}
                         {j.komisi_tipe === "persen" ? `${j.komisi_nilai}%` : formatRupiah(j.komisi_nilai)}
                       </span>
@@ -491,72 +612,111 @@ export default function ServisBaruPage() {
                 ))}
               </ul>
             )}
+
             {pickerTab === "barang" && barangResults.length > 0 && (
-              <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200">
+              <ul className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                 {barangResults.map((it) => (
                   <li key={it.id}>
-                    <button onClick={() => addBarang(it)} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50">
-                      <span>
-                        <span className="font-mono text-xs text-slate-400">{it.kode}</span>{" "}
-                        <span className="font-medium">{it.nama}</span>
+                    <button
+                      onClick={() => addBarang(it)}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-blue-50/60"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-mono text-[10px] text-slate-400">{it.kode}</span>{" "}
+                        <span className="font-medium text-slate-700">{it.nama}</span>
                       </span>
-                      <span className="text-xs text-slate-500">{formatRupiah(it.harga_jual)} · stok {it.stok}</span>
+                      <span className="shrink-0 text-xs text-slate-500">
+                        {formatRupiah(it.harga_jual)} · stok {it.stok}
+                      </span>
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
+
+            {itemSearch.trim() && !searching && jasaResults.length === 0 && barangResults.length === 0 && (
+              <p className="mt-2 rounded-lg bg-slate-50 px-3 py-3 text-center text-xs text-slate-400">
+                Tidak ada hasil.
+              </p>
+            )}
+          </Card>
 
           {/* Keranjang */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-700">Daftar Item ({cart.length})</h2>
+          <Card>
+            <CardTitle icon={Receipt} right={<Badge tone="blue">{cart.length} item</Badge>}>
+              Daftar Item
+            </CardTitle>
+
             {cart.length === 0 ? (
-              <p className="mt-3 rounded-lg bg-slate-50 px-3 py-6 text-center text-sm text-slate-400">
-                Belum ada item. Pilih jasa / sparepart di atas.
-              </p>
+              <div className="mt-3 flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center">
+                <Plus className="h-6 w-6 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Belum ada item</p>
+                <p className="text-xs text-slate-400">Pilih jasa atau sparepart di atas.</p>
+              </div>
             ) : (
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-200 text-[10px] uppercase text-slate-500">
-                    <tr>
-                      <th className="px-2 py-1.5">Item</th>
-                      <th className="px-2 py-1.5 w-16">Qty</th>
-                      <th className="px-2 py-1.5 w-24">Harga</th>
-                      <th className="px-2 py-1.5 w-20">Diskon %</th>
-                      <th className="px-2 py-1.5 text-right">Subtotal</th>
-                      <th className="px-2 py-1.5"></th>
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-400">
+                      <th className="px-2 py-2 font-bold">Item</th>
+                      <th className="w-16 px-2 py-2 font-bold">Qty</th>
+                      <th className="w-24 px-2 py-2 font-bold">Harga</th>
+                      <th className="w-20 px-2 py-2 font-bold">Disc %</th>
+                      <th className="px-2 py-2 text-right font-bold">Subtotal</th>
+                      <th className="w-8 px-2 py-2" />
                     </tr>
                   </thead>
                   <tbody>
                     {cart.map((l) => (
                       <tr key={l.key} className="border-b border-slate-100 last:border-0">
-                        <td className="px-2 py-1.5">
-                          <div className="font-medium">{l.nama}</div>
+                        <td className="px-2 py-2">
+                          <div className="font-semibold text-slate-700">{l.nama}</div>
                           <div className="text-[10px] text-slate-400">
-                            {l.type === "jasa" ? `Jasa · komisi ${formatRupiah(l.komisi)}` : `Sparepart${l.qty > l.stok ? ` · ⚠ stok ${l.stok}` : ""}`}
+                            {l.type === "jasa"
+                              ? `Jasa · komisi ${formatRupiah(l.komisi)}`
+                              : `Sparepart${l.qty > l.stok ? ` · ⚠ stok ${l.stok}` : ""}`}
                           </div>
                         </td>
-                        <td className="px-2 py-1.5">
-                          <input type="number" min={1} value={l.qty}
+                        <td className="px-2 py-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={l.qty}
                             onChange={(e) => updateLine(l.key, { qty: Math.max(1, Number(e.target.value) || 1) })}
-                            className="w-full rounded border border-slate-300 px-1.5 py-1 text-right focus:border-blue-500 focus:outline-none" />
+                            className="h-8 px-1.5 text-right text-xs"
+                          />
                         </td>
-                        <td className="px-2 py-1.5">
-                          <input type="number" value={l.harga}
+                        <td className="px-2 py-2">
+                          <Input
+                            type="number"
+                            value={l.harga}
                             onChange={(e) => updateLine(l.key, { harga: Number(e.target.value) || 0 })}
-                            className="w-full rounded border border-slate-300 px-1.5 py-1 text-right focus:border-blue-500 focus:outline-none" />
+                            className="h-8 px-1.5 text-right text-xs"
+                          />
                         </td>
-                        <td className="px-2 py-1.5">
-                          <input type="number" value={l.diskon}
-                            onChange={(e) => updateLine(l.key, { diskon: Number(e.target.value) || 0 })}
-                            className="w-full rounded border border-slate-300 px-1.5 py-1 text-right focus:border-blue-500 focus:outline-none" />
+                        <td className="px-2 py-2">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={l.diskon}
+                            onChange={(e) =>
+                              updateLine(l.key, { diskon: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
+                            }
+                            className="h-8 px-1.5 text-right text-xs"
+                          />
                         </td>
-                        <td className="px-2 py-1.5 text-right font-semibold">
+                        <td className="px-2 py-2 text-right font-semibold text-slate-800">
                           {formatRupiah(l.harga * l.qty * (1 - l.diskon / 100))}
                         </td>
-                        <td className="px-2 py-1.5 text-right">
-                          <button onClick={() => removeLine(l.key)} className="text-red-600 hover:underline">✕</button>
+                        <td className="px-2 py-2 text-right">
+                          <button
+                            onClick={() => removeLine(l.key)}
+                            className="rounded-lg p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                            aria-label={`Hapus ${l.nama}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -564,45 +724,49 @@ export default function ServisBaruPage() {
                 </table>
               </div>
             )}
-          </div>
+          </Card>
         </div>
 
-        {/* KOLOM KANAN */}
-        <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-700">Ringkasan</h2>
+        {/* Ringkasan */}
+        <div className="space-y-3 lg:sticky lg:top-20 lg:self-start">
+          <Card>
+            <CardTitle icon={HandCoins}>Ringkasan</CardTitle>
             <div className="mt-3 space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Diskon Nota (%)</label>
-                <input type="number" value={headerDiskon} onChange={(e) => setHeaderDiskon(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Diskon Nota (%)</label>
+                <Input type="number" min={0} max={100} value={headerDiskon} onChange={(e) => setHeaderDiskon(e.target.value)} placeholder="0" />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Catatan</label>
-                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsional"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Catatan</label>
+                <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsional" />
               </div>
             </div>
-            <div className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{formatRupiah(subtotal)}</span></div>
-              <div className="flex justify-between text-slate-600"><span>Diskon</span><span>- {formatRupiah(totalDiskon)}</span></div>
-              <div className="flex justify-between text-blue-700"><span>Komisi Mekanik</span><span>{formatRupiah(komisiTotal)}</span></div>
-              <div className="flex items-center justify-between border-t border-slate-200 pt-2">
-                <span className="font-bold text-slate-800">TOTAL</span>
-                <span className="text-xl font-bold text-blue-700">{formatRupiah(total)}</span>
+
+            <div className="mt-3 space-y-2 text-[13px]">
+              <div className="flex justify-between text-slate-500"><span>Subtotal</span><span className="font-medium text-slate-700">{formatRupiah(subtotal)}</span></div>
+              <div className="flex justify-between text-slate-500"><span>Diskon</span><span className="font-medium text-slate-700">- {formatRupiah(totalDiskon)}</span></div>
+              <div className="flex justify-between text-amber-600"><span>Komisi Mekanik</span><span className="font-medium">{formatRupiah(komisiTotal)}</span></div>
+              <div className="flex items-center justify-between border-t border-slate-200 pt-2.5">
+                <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Total</span>
+                <span className="text-xl font-bold tracking-tight text-blue-700">{formatRupiah(total)}</span>
               </div>
             </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Status awal: <b>Pengerjaan</b>. Tandai Selesai di daftar servis setelah pekerjaan selesai.
+
+            <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-relaxed text-slate-500">
+              Status awal nota adalah <b>Pengerjaan</b>. Tandai selesai di daftar servis setelah pekerjaan
+              rampung agar pemasukan masuk laporan.
             </p>
-            <button
+
+            <Button
+              variant="primary"
               onClick={handleSave}
-              disabled={saving || cart.length === 0}
-              className="mt-4 w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+              loading={saving}
+              disabled={cart.length === 0}
+              className="mt-3 h-11 w-full"
             >
-              {saving ? "Menyimpan..." : `Simpan Nota (${formatRupiah(total)})`}
-            </button>
-          </div>
+              {saving ? "Menyimpan..." : `Simpan Nota · ${formatRupiah(total)}`}
+            </Button>
+          </Card>
         </div>
       </div>
     </div>

@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/toast";
 import { deleteSalesInvoice } from "@/lib/invoice-utils";
 import NotaPrint from "@/components/nota-print";
-import { Pencil, Trash2 } from "lucide-react";
+import { Badge, Button } from "@/components/ui";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 
 type Detail = {
   item_name: string;
@@ -34,8 +35,13 @@ export default function DetailPenjualanPage() {
   useEffect(() => {
     (async () => {
       const [{ data: inv }, { data: det }, { data: s }] = await Promise.all([
-        supabase.from("sales_invoices").select("*").eq("id", params.id).single(),
-        supabase.from("invoice_details").select("*").eq("invoice_type", "penjualan").eq("invoice_id", params.id).order("id"),
+        supabase.from("sales_invoices").select("*").eq("id", params.id).maybeSingle(),
+        supabase
+          .from("invoice_details")
+          .select("*")
+          .eq("invoice_type", "penjualan")
+          .eq("invoice_id", params.id)
+          .order("id"),
         supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       ]);
       if (inv) setInv(inv);
@@ -59,8 +65,22 @@ export default function DetailPenjualanPage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-400">Memuat...</p>;
-  if (!inv) return <p className="text-sm text-red-500">Nota tidak ditemukan.</p>;
+  if (loading) {
+    return (
+      <div className="animate-fade-in space-y-3">
+        <div className="skeleton h-10 w-64" />
+        <div className="skeleton mx-auto h-[500px] w-full max-w-[210mm] rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (!inv) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm font-medium text-red-600">
+        Nota tidak ditemukan.
+      </div>
+    );
+  }
 
   const lines = details.map((d) => ({
     nama: d.item_name,
@@ -75,19 +95,42 @@ export default function DetailPenjualanPage() {
 
   return (
     <div>
-      <div className="print:hidden mb-4 flex flex-wrap items-center justify-between gap-2">
-        <button onClick={() => router.push("/penjualan")} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-          ← Kembali ke Daftar
-        </button>
-        <div className="flex gap-2">
-          <Link href={`/penjualan/baru?id=${inv.id}`} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-            <Pencil className="h-3.5 w-3.5" /> Edit Nota
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/penjualan"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-700"
+            aria-label="Kembali"
+          >
+            <ArrowLeft className="h-4 w-4" />
           </Link>
-          <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50">
-            <Trash2 className="h-3.5 w-3.5" /> {deleting ? "Menghapus..." : "Hapus Nota"}
-          </button>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900">Nota {inv.no_nota}</h1>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              {inv.status === "lunas" ? <Badge tone="green">Lunas</Badge> : <Badge tone="amber">TOP</Badge>}
+              <span className="text-xs text-slate-400">{inv.customer_name || "Umum"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Link href={`/penjualan/baru?id=${inv.id}`}>
+            <Button icon={Pencil} size="sm">
+              Edit Nota
+            </Button>
+          </Link>
+          <Button
+            icon={Trash2}
+            size="sm"
+            variant="danger"
+            onClick={handleDelete}
+            loading={deleting}
+          >
+            {deleting ? "Menghapus..." : "Hapus Nota"}
+          </Button>
         </div>
       </div>
+
       <NotaPrint
         company={company}
         title="Nota Penjualan"

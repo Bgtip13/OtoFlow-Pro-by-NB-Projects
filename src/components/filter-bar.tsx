@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Search, type LucideIcon } from "lucide-react";
 import DateInput from "@/components/date-input";
 import { cn } from "@/components/ui";
@@ -46,7 +47,7 @@ export function FilterBar({ children, className }: { children: React.ReactNode; 
   return (
     <div
       className={cn(
-        "mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-900/[0.03]",
+        "mt-4 flex flex-wrap items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] backdrop-blur",
         className
       )}
     >
@@ -75,6 +76,8 @@ export function PeriodFilter({
   presets?: Period[];
   className?: string;
 }) {
+  const [rangeFor] = useState(() => presets.map((p) => ({ p, ...periodRange(p) })));
+
   function setRange(p: Period) {
     const r = periodRange(p);
     onChange(r.from, r.to);
@@ -89,10 +92,10 @@ export function PeriodFilter({
     onChange(from && v < from ? v : from, v);
   }
 
-  const active = presets.find((p) => {
-    const r = periodRange(p);
-    return r.from === from && r.to === to;
-  });
+  const active = useMemo(
+    () => rangeFor.find((r) => r.from === from && r.to === to)?.p,
+    [from, to, rangeFor]
+  );
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
@@ -103,8 +106,10 @@ export function PeriodFilter({
             type="button"
             onClick={() => setRange(p)}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-              active === p ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+              active === p
+                ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                : "text-slate-500 hover:text-slate-700"
             )}
           >
             {PERIOD_LABELS[p]}
@@ -142,8 +147,18 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
+        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
       />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Hapus pencarian"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-1 text-slate-300 transition hover:text-slate-500"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
@@ -174,7 +189,7 @@ export function SelectFilter<T extends string>({
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         className={cn(
-          "h-10 appearance-none rounded-xl border border-slate-300 bg-white pr-8 text-sm font-medium text-slate-700 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none",
+          "h-10 appearance-none rounded-xl border border-slate-200 bg-white pr-8 text-sm font-medium text-slate-700 shadow-[0_1px_1px_rgba(15,23,42,0.03)] transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none",
           Icon ? "pl-9" : "pl-3"
         )}
       >

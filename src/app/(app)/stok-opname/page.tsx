@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { todayISO } from "@/lib/format";
+import { useDebouncedValue, useRequestGuard } from "@/lib/hooks";
+import { mapLimit } from "@/lib/async";
 import { useToast } from "@/components/toast";
 import PageHeader from "@/components/page-header";
 import { FilterBar, SearchInput } from "@/components/filter-bar";
@@ -16,23 +18,31 @@ type Item = { id: string; kode: string; nama: string; stok: number };
 export default function StokOpnamePage() {
   const supabase = createClient();
   const toast = useToast();
+  const guard = useRequestGuard();
+
   const [rows, setRows] = useState<Item[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [loading, setLoading] = useState(true);
   const [fisik, setFisik] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   async function load() {
+    const requestId = guard.next();
     setLoading(true);
-    let query = supabase.from("items").select("*", { count: "exact" }).order("nama");
-    const s = search.trim();
+
+    let query = supabase.from("items").select("id, kode, nama, stok", { count: "exact" }).order("nama");
+    const s = debouncedSearch.trim();
     if (s) {
-      const like = `%${s}%`;
-      query = query.or(`kode.ilike.${like},nama.ilike.${like}`);
+      const like = `%${s.replace(/[",()]/g, " ")}%`;
+      query = query.or(`kode.ilike."${like}",nama.ilike."${like}"`);
     }
-    const { data, count } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    const { data, count, error } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (!guard.isCurrent(requestId)) return;
+    if (error) toast.error(`Gagal memuat barang: ${error.message}`);
     if (data) {
       setRows(data as Item[]);
       setTotal(count ?? 0);
@@ -46,7 +56,7 @@ export default function StokOpnamePage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search]);
+  }, [page, debouncedSearch]);
 
   async function handleSaveAll() {
     const changes = rows.filter((r) => Number(fisik[r.id]) !== r.stok);
@@ -58,11 +68,14 @@ export default function StokOpnamePage() {
 
     setSaving(true);
     try {
-      for (const r of changes) {
+      const mutations: Record<string, unknown>[] = [];
+
+      await mapLimit(changes, 6, async (r) => {
         const newStok = Math.max(0, Number(fisik[r.id]) || 0);
         const diff = newStok - r.stok;
-        await supabase.from("items").update({ stok: newStok }).eq("id", r.id);
-        await supabase.from("stock_mutations").insert({
+        const { error } = await supabase.from("items").update({ stok: newStok }).eq("id", r.id);
+        if (error) throw error;
+        mutations.push({
           item_id: r.id,
           tanggal: todayISO(),
           jenis: "opname",
@@ -73,22 +86,25 @@ export default function StokOpnamePage() {
           ref_id: r.id,
           note: "Stok opname",
         });
-      }
+      });
+
+      if (mutations.length > 0) await supabase.from("stock_mutations").insert(mutations);
       toast.success(`Stok opname tersimpan untuk ${changes.length} barang.`);
       load();
     } catch (e: any) {
       toast.error(`Gagal: ${e.message}`);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const jumlahSelisih = rows.filter((r) => Number(fisik[r.id]) !== r.stok).length;
 
   const columns: TableColumn<Item>[] = [
-    { key: "kode", header: "Kode", render: (r) => <span className="font-mono text-slate-500">{r.kode}</span> },
-    { key: "nama", header: "Nama Barang", render: (r) => <span className="font-medium text-slate-700">{r.nama}</span> },
-    { key: "stok", header: "Stok Sistem", align: "right", render: (r) => r.stok },
+    { key: "kode", header: "Kode", render: (r) => <span className="font-mono text-[11px] text-slate-500">{r.kode}</span> },
+    { key: "nama", header: "Nama Barang", render: (r) => <span className="font-semibold text-slate-800">{r.nama}</span> },
+    { key: "stok", header: "Stok Sistem", align: "right", render: (r) => <span className="font-medium text-slate-600">{r.stok}</span> },
     {
       key: "fisik",
       header: "Stok Fisik",
@@ -98,7 +114,7 @@ export default function StokOpnamePage() {
           type="number"
           value={fisik[r.id] ?? r.stok}
           onChange={(e) => setFisik({ ...fisik, [r.id]: e.target.value })}
-          className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-right text-xs text-slate-700 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
+          className="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2 text-right text-xs font-semibold text-slate-700 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
         />
       ),
     },
@@ -117,14 +133,20 @@ export default function StokOpnamePage() {
   return (
     <div>
       <PageHeader icon={ClipboardList} title="Stok Opname" subtitle="Cocokkan stok fisik dengan stok sistem">
-        <Button icon={Save} variant="primary" onClick={handleSaveAll} disabled={saving}>
-          {saving ? "Menyimpan..." : "Simpan Semua Penyesuaian"}
+        <Button icon={Save} variant="primary" onClick={handleSaveAll} loading={saving}>
+          {saving ? "Menyimpan..." : "Simpan Penyesuaian"}
         </Button>
       </PageHeader>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard label="Total Barang" value={total} icon={ClipboardList} tone="slate" />
-        <StatCard label="Ada Selisih" value={jumlahSelisih} icon={ClipboardList} tone={jumlahSelisih > 0 ? "amber" : "green"} hint="Di halaman ini" />
+        <StatCard label="Total Barang" value={total} icon={ClipboardList} tone="blue" />
+        <StatCard
+          label="Ada Selisih"
+          value={jumlahSelisih}
+          icon={ClipboardList}
+          tone={jumlahSelisih > 0 ? "amber" : "green"}
+          hint="Di halaman ini"
+        />
       </div>
 
       <FilterBar>
@@ -136,6 +158,9 @@ export default function StokOpnamePage() {
           }}
           placeholder="Cari kode / nama barang..."
         />
+        <span className="ml-auto hidden text-[11px] text-slate-400 sm:block">
+          Isi kolom <b>Stok Fisik</b>, sistem menghitung selisih otomatis.
+        </span>
       </FilterBar>
 
       <div className="mt-4">
