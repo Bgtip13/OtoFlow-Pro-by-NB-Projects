@@ -14,7 +14,7 @@ import {
 type Item = { id: string; kode: string; brand: string; nama: string; stok: number; stok_min: number; stok_over: number };
 
 const QUICK_ACTIONS = [
-  { href: "/penjualan/baru", label: "Nota Penjualan", icon: Receipt, tone: "bg-blue-50 text-blue-600" },
+  { href: "/penjualan/baru", label: "Nota Penjualan", icon: Receipt, tone: "bg-gradient-to-br from-violet-400/20 to-blue-500/20 text-blue-600" },
   { href: "/servis/baru", label: "Nota Servis", icon: Wrench, tone: "bg-emerald-50 text-emerald-600" },
   { href: "/pembelian/baru", label: "Barang Masuk", icon: PackagePlus, tone: "bg-violet-50 text-violet-600" },
   { href: "/keuangan/piutang", label: "Piutang", icon: CreditCard, tone: "bg-amber-50 text-amber-600" },
@@ -73,7 +73,7 @@ export default function DashboardPage() {
           <Link
             key={a.href}
             href={a.href}
-            className="group flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5"
+            className="group flex items-center gap-2.5 rounded-3xl border border-white/80 bg-white/75 p-3 shadow-[0_1px_2px_rgba(45,30,128,0.05)] ring-1 ring-blue-200/30 backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:ring-blue-300/60 hover:shadow-lg hover:shadow-blue-500/15"
           >
             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${a.tone}`}>
               <a.icon className="h-4.5 w-4.5" />

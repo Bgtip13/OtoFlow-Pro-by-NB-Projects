@@ -36,27 +36,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-canvas">
+    <div className="flex min-h-screen">
       {/* Panel brand */}
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-10 lg:flex">
-        <div className="pointer-events-none absolute -left-24 top-1/4 h-80 w-80 rounded-full bg-blue-600/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-0 h-80 w-80 rounded-full bg-cyan-500/15 blur-3xl" />
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-sidebar p-10 lg:flex">
+        <div className="pointer-events-none absolute -left-24 top-1/4 h-80 w-80 rounded-full bg-violet-500/30 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-0 h-80 w-80 rounded-full bg-cyan-400/20 blur-3xl" />
 
         <div className="relative flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="OtoFlow Pro" className="h-12 w-12 rounded-2xl bg-white/10 object-contain p-1" />
+          <img src="/logo.png" alt="OtoFlow Pro" className="h-14 w-14 rounded-2xl bg-white object-contain p-0.5 shadow-lg shadow-violet-500/30" />
           <div>
             <div className="text-base font-bold tracking-tight text-white">OtoFlow Pro</div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">by NB Projects</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-blue-200/70">by NB Projects</div>
           </div>
         </div>
 
         <div className="relative max-w-md">
           <h2 className="text-3xl font-bold leading-tight tracking-tight text-white">
             Kelola bengkel Anda<br />
-            <span className="text-blue-400">lebih rapi dan cepat.</span>
+            <span className="bg-gradient-to-r from-violet-300 via-blue-300 to-cyan-300 bg-clip-text text-transparent">lebih rapi dan cepat.</span>
           </h2>
-          <p className="mt-3 text-sm leading-relaxed text-slate-400">
+          <p className="mt-3 text-sm leading-relaxed text-blue-100/70">
             Kasir penjualan, nota servis, stok sparepart, komisi mekanik, sampai laporan laba rugi —
             semuanya dalam satu aplikasi.
           </p>
@@ -67,17 +67,17 @@ export default function LoginPage() {
               { icon: BarChart3, text: "Laporan omset dan laba rugi otomatis" },
               { icon: Lock, text: "Data tersimpan aman di cloud" },
             ].map((f) => (
-              <div key={f.text} className="flex items-center gap-3 rounded-xl bg-white/[0.04] px-3 py-2.5 ring-1 ring-inset ring-white/10">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/15 text-blue-300">
+              <div key={f.text} className="flex items-center gap-3 rounded-2xl bg-white/[0.07] px-3 py-2.5 ring-1 ring-inset ring-white/15 backdrop-blur">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400/30 to-cyan-400/30 text-cyan-200">
                   <f.icon className="h-4 w-4" />
                 </span>
-                <span className="text-[13px] text-slate-300">{f.text}</span>
+                <span className="text-[13px] text-blue-50/90">{f.text}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="relative text-[11px] text-slate-500">
+        <p className="relative text-[11px] text-blue-200/50">
           © {new Date().getFullYear()} OtoFlow Pro · by NB Projects
         </p>
       </div>
@@ -87,12 +87,12 @@ export default function LoginPage() {
         <div className="w-full max-w-sm animate-page-in">
           <div className="mb-6 flex flex-col items-center lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="OtoFlow Pro" className="h-16 w-16 rounded-2xl bg-white object-contain p-1 shadow-sm" />
+            <img src="/logo.png" alt="OtoFlow Pro" className="h-20 w-20 rounded-3xl bg-white object-contain p-1 shadow-xl shadow-violet-500/25" />
             <h1 className="mt-3 text-xl font-bold tracking-tight text-slate-900">OtoFlow Pro</h1>
             <p className="text-xs text-slate-400">by NB Projects</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_24px_48px_-32px_rgba(15,23,42,0.35)]">
+          <div className="rounded-[28px] border border-white/80 bg-white/75 p-6 shadow-[0_1px_2px_rgba(45,30,128,0.05),0_30px_60px_-30px_rgba(86,54,242,0.45)] ring-1 ring-blue-200/40 backdrop-blur-2xl">
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Masuk ke akun</h1>
             <p className="mt-1 text-[13px] text-slate-500">Gunakan username dan password bengkel Anda.</p>
 
@@ -107,7 +107,7 @@ export default function LoginPage() {
                     required
                     autoComplete="username"
                     placeholder="Masukkan username"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 focus:outline-none"
                   />
                 </div>
               </div>
@@ -123,7 +123,7 @@ export default function LoginPage() {
                     required
                     autoComplete="current-password"
                     placeholder="Masukkan password"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-10 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-10 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 focus:outline-none"
                   />
                   <button
                     type="button"
@@ -146,7 +146,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-blue-600 to-blue-700 text-sm font-semibold text-white shadow-sm shadow-blue-700/25 transition hover:from-blue-500 hover:to-blue-600 focus-visible:ring-4 focus-visible:ring-blue-500/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-btn text-sm font-semibold text-white shadow-brand transition hover:brightness-110 focus-visible:ring-4 focus-visible:ring-blue-500/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -159,7 +159,7 @@ export default function LoginPage() {
 
             <p className="mt-5 text-center text-[13px] text-slate-500">
               Belum punya akun?{" "}
-              <Link href="/register" className="font-semibold text-blue-600 hover:underline">
+              <Link href="/register" className="font-semibold text-blue-600 hover:text-violet-600 hover:underline">
                 Daftar di sini
               </Link>
             </p>

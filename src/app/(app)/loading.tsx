@@ -17,7 +17,7 @@ export default function AppLoading() {
 
       <div className="mt-4 skeleton h-14 rounded-2xl" />
 
-      <div className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mt-4 space-y-2 rounded-3xl border border-white/80 bg-white/70 p-4 backdrop-blur-xl">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="skeleton h-8" />
         ))}

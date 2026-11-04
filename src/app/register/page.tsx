@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { AlertCircle, KeyRound, Lock, ShieldCheck, User, UserPlus } from "lucide-react";
 
 const inputBase =
-  "h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none";
+  "h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 focus:outline-none";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -70,15 +70,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-canvas">
+    <div className="flex min-h-screen">
       {/* Panel brand */}
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-10 lg:flex">
-        <div className="pointer-events-none absolute -left-24 bottom-1/4 h-80 w-80 rounded-full bg-indigo-600/25 blur-3xl" />
-        <div className="pointer-events-none absolute -top-16 right-0 h-72 w-72 rounded-full bg-blue-500/15 blur-3xl" />
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-sidebar p-10 lg:flex">
+        <div className="pointer-events-none absolute -left-24 bottom-1/4 h-80 w-80 rounded-full bg-violet-500/30 blur-3xl" />
+        <div className="pointer-events-none absolute -top-16 right-0 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
 
         <div className="relative flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="OtoFlow Pro" className="h-12 w-12 rounded-2xl bg-white/10 object-contain p-1" />
+          <img src="/logo.png" alt="OtoFlow Pro" className="h-14 w-14 rounded-2xl bg-white object-contain p-0.5 shadow-lg shadow-violet-500/30" />
           <div>
             <div className="text-base font-bold tracking-tight text-white">OtoFlow Pro</div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">by NB Projects</div>
@@ -88,16 +88,16 @@ export default function RegisterPage() {
         <div className="relative max-w-md">
           <h2 className="text-3xl font-bold leading-tight tracking-tight text-white">
             Satu aplikasi untuk<br />
-            <span className="text-indigo-300">seluruh operasional bengkel.</span>
+            <span className="bg-gradient-to-r from-violet-300 via-blue-300 to-cyan-300 bg-clip-text text-transparent">seluruh operasional bengkel.</span>
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-slate-400">
             Daftarkan akun dengan kode aktivasi dari admin. Setelah aktif, Anda bisa langsung membuat
             nota penjualan, nota servis, dan memantau stok.
           </p>
 
-          <div className="mt-8 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-inset ring-white/10">
+          <div className="mt-8 rounded-2xl bg-white/[0.07] p-4 ring-1 ring-inset ring-white/15 backdrop-blur">
             <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
-              <ShieldCheck className="h-4 w-4 text-indigo-300" />
+              <ShieldCheck className="h-4 w-4 text-cyan-300" />
               Butuh kode aktivasi?
             </div>
             <p className="mt-1.5 text-[12px] leading-relaxed text-slate-400">
@@ -117,11 +117,11 @@ export default function RegisterPage() {
         <div className="w-full max-w-sm animate-page-in">
           <div className="mb-5 flex flex-col items-center lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="OtoFlow Pro" className="h-14 w-14 rounded-2xl bg-white object-contain p-1 shadow-sm" />
+            <img src="/logo.png" alt="OtoFlow Pro" className="h-16 w-16 rounded-3xl bg-white object-contain p-1 shadow-xl shadow-violet-500/25" />
             <h1 className="mt-2 text-lg font-bold tracking-tight text-slate-900">Daftar Akun</h1>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_24px_48px_-32px_rgba(15,23,42,0.35)]">
+          <div className="rounded-[28px] border border-white/80 bg-white/75 p-6 shadow-[0_1px_2px_rgba(45,30,128,0.05),0_30px_60px_-30px_rgba(86,54,242,0.45)] ring-1 ring-blue-200/40 backdrop-blur-2xl">
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Buat akun baru</h1>
             <p className="mt-1 text-[13px] text-slate-500">Isi data di bawah untuk mulai menggunakan aplikasi.</p>
 
@@ -197,7 +197,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-blue-600 to-blue-700 text-sm font-semibold text-white shadow-sm shadow-blue-700/25 transition hover:from-blue-500 hover:to-blue-600 focus-visible:ring-4 focus-visible:ring-blue-500/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-btn text-sm font-semibold text-white shadow-brand transition hover:brightness-110 focus-visible:ring-4 focus-visible:ring-blue-500/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -210,7 +210,7 @@ export default function RegisterPage() {
 
             <p className="mt-5 text-center text-[13px] text-slate-500">
               Sudah punya akun?{" "}
-              <Link href="/login" className="font-semibold text-blue-600 hover:underline">
+              <Link href="/login" className="font-semibold text-blue-600 hover:text-violet-600 hover:underline">
                 Masuk
               </Link>
             </p>
