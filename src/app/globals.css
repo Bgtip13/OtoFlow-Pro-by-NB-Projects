@@ -1,9 +1,83 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-jakarta), var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --color-canvas: #f4f6fb;
+  --color-canvas: #f4f5ff;
+
+  /* ===== Palet NB Projects (diambil dari logo) =====
+     "blue" di-remap ke biru-indigo-violet logo, sehingga seluruh kelas
+     blue-* yang sudah ada di aplikasi otomatis ikut bertema logo. */
+  --color-blue-50: #f3f1ff;
+  --color-blue-100: #e8e5ff;
+  --color-blue-200: #d3cdff;
+  --color-blue-300: #b2a8ff;
+  --color-blue-400: #8d7cff;
+  --color-blue-500: #6f55ff;
+  --color-blue-600: #5636f2;
+  --color-blue-700: #4527d1;
+  --color-blue-800: #3922a6;
+  --color-blue-900: #2d1e80;
+  --color-blue-950: #1b1250;
+
+  /* Aksen cyan (ujung huruf B) */
+  --color-cyan-300: #67effa;
+  --color-cyan-400: #22e5f5;
+  --color-cyan-500: #0fc7e0;
+
+  /* Ungu (huruf N) */
+  --color-violet-400: #b07bff;
+  --color-violet-500: #9a55fa;
+  --color-violet-600: #8340ee;
+
+  /* "slate" diberi rona navy-lavender agar menyatu dengan logo */
+  --color-slate-50: #f7f7fe;
+  --color-slate-100: #eff0fa;
+  --color-slate-200: #e2e4f3;
+  --color-slate-300: #c9cce3;
+  --color-slate-400: #9a9ec2;
+  --color-slate-500: #6e7298;
+  --color-slate-600: #51557d;
+  --color-slate-700: #3a3e63;
+  --color-slate-800: #24274a;
+  --color-slate-900: #15173a;
+  --color-slate-950: #0b0b27;
+}
+
+:root {
+  --brand-gradient: linear-gradient(135deg, #a855f7 0%, #4b35ff 48%, #18c8f5 100%);
+  --brand-gradient-btn: linear-gradient(135deg, #8b4dff 0%, #5636f2 52%, #2b6bff 100%);
+  --brand-gradient-btn-hover: linear-gradient(135deg, #9a63ff 0%, #6548ff 52%, #3f7cff 100%);
+  --brand-glow: 0 10px 28px -10px rgba(75, 53, 255, 0.55);
+}
+
+.bg-sidebar {
+  background-color: #14103f;
+  background-image:
+    radial-gradient(22rem 18rem at 0% 0%, rgba(168, 85, 247, 0.38), transparent 65%),
+    radial-gradient(24rem 20rem at 100% 100%, rgba(34, 229, 245, 0.22), transparent 65%),
+    linear-gradient(180deg, #1d1458 0%, #14103f 55%, #0c0a2c 100%);
+}
+
+.bg-brand {
+  background-color: #4b35ff;
+  background-image: linear-gradient(135deg, #a855f7 0%, #4b35ff 48%, #18c8f5 100%);
+}
+
+.bg-brand-btn {
+  background-color: #5636f2;
+  background-image: linear-gradient(135deg, #8b4dff 0%, #5636f2 52%, #2b6bff 100%);
+}
+
+.text-brand {
+  background-image: linear-gradient(135deg, #a855f7 0%, #4b35ff 48%, #18c8f5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.shadow-brand {
+  box-shadow: 0 10px 28px -10px rgba(75, 53, 255, 0.55);
 }
 
 @layer base {
@@ -14,20 +88,27 @@
 
   body {
     background-color: var(--color-canvas);
-    color: #0f172a;
+    /* Blob gradien lembut seperti pada ikon logo: ungu kiri-atas, cyan kanan-bawah */
+    background-image:
+      radial-gradient(52rem 36rem at -8% -6%, rgba(168, 133, 255, 0.26), transparent 62%),
+      radial-gradient(46rem 34rem at 108% 4%, rgba(120, 190, 255, 0.18), transparent 60%),
+      radial-gradient(54rem 38rem at 104% 108%, rgba(34, 229, 245, 0.2), transparent 62%),
+      radial-gradient(40rem 30rem at -4% 100%, rgba(168, 133, 255, 0.14), transparent 60%);
+    background-attachment: fixed;
+    color: #15173a;
     font-family: var(--font-sans);
     text-rendering: optimizeLegibility;
   }
 
   ::selection {
-    background-color: #bfdbfe;
-    color: #0f172a;
+    background-color: #d3cdff;
+    color: #15173a;
   }
 
   /* Scrollbar tipis & rapi */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: #c9cce3 transparent;
   }
   *::-webkit-scrollbar {
     width: 8px;
@@ -37,13 +118,13 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
+    background-color: #c9cce3;
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: #94a3b8;
+    background-color: #9a9ec2;
     background-clip: content-box;
   }
 }
@@ -126,7 +207,7 @@ input[type="number"] {
 .skeleton {
   position: relative;
   overflow: hidden;
-  background-color: #eaeef6;
+  background-color: #e8e9f7;
   border-radius: 0.5rem;
 }
 
@@ -135,7 +216,7 @@ input[type="number"] {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
   animation: shimmer 1.5s infinite;
 }
 
@@ -270,5 +351,6 @@ input[type="number"] {
 
   body {
     background: #ffffff !important;
+    background-image: none !important;
   }
 }
