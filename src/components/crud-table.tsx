@@ -320,7 +320,7 @@ export default function CrudTable({
               if (f) handleImportFile(f);
             }}
           />
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-400/20 to-cyan-400/25 text-blue-600">
             <FileSpreadsheet className="h-5 w-5" />
           </span>
           <span className="text-sm font-semibold text-blue-600">

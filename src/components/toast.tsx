@@ -23,7 +23,7 @@ let nextId = 1;
 const TOAST_STYLE: Record<ToastType, { icon: LucideIcon; tile: string; bar: string }> = {
   success: { icon: CheckCircle2, tile: "bg-emerald-50 text-emerald-600", bar: "bg-emerald-500" },
   error: { icon: AlertCircle, tile: "bg-red-50 text-red-600", bar: "bg-red-500" },
-  info: { icon: Info, tile: "bg-blue-50 text-blue-600", bar: "bg-blue-500" },
+  info: { icon: Info, tile: "bg-blue-50 text-blue-600", bar: "bg-brand" },
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -58,7 +58,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               role="status"
-              className="pointer-events-auto relative flex animate-slide-in-right items-start gap-2.5 overflow-hidden rounded-xl border border-slate-200/80 bg-white px-3 py-3 shadow-lg shadow-slate-900/10"
+              className="pointer-events-auto relative flex animate-slide-in-right items-start gap-2.5 overflow-hidden rounded-2xl border border-white/80 bg-white/90 px-3 py-3 shadow-lg shadow-blue-900/15 ring-1 ring-blue-200/30 backdrop-blur-xl"
             >
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${style.tile}`}>
                 <Icon className="h-4 w-4" />

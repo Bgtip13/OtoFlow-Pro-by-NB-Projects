@@ -159,9 +159,9 @@ export default function Shell({
 
   const AppLogo = logoUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={logoUrl} alt={company} className="h-9 w-9 rounded-xl bg-white/10 object-contain p-0.5" />
+    <img src={logoUrl} alt={company} className="h-9 w-9 rounded-xl bg-white/90 object-contain p-0.5 shadow-sm ring-1 ring-white/30" />
   ) : (
-    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-black text-white">
+    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-sm font-black text-white shadow-brand">
       OF
     </div>
   );
@@ -197,11 +197,11 @@ export default function Shell({
             <button
               onClick={() => toggleGroup(group.title)}
               className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left transition-colors ${
-                groupActive ? "text-white" : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100"
+                groupActive ? "text-white" : "text-slate-300/80 hover:bg-white/[0.08] hover:text-white"
               }`}
             >
               <span className="flex items-center gap-2.5">
-                <group.icon className={`h-4 w-4 shrink-0 ${groupActive ? "text-blue-400" : ""}`} />
+                <group.icon className={`h-4 w-4 shrink-0 ${groupActive ? "text-cyan-300" : ""}`} />
                 <span className="text-[13px] font-semibold tracking-wide">{group.title}</span>
               </span>
               <ChevronDown
@@ -238,7 +238,7 @@ export default function Shell({
   const footer = (
     <div className="border-t border-white/10 p-3">
       <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-2.5 py-2">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 text-[11px] font-bold uppercase text-white">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 text-[11px] font-bold uppercase text-white shadow-sm ring-1 ring-white/20">
           {username.slice(0, 2)}
         </div>
         {!collapsed && (
@@ -250,7 +250,7 @@ export default function Shell({
               </div>
             </div>
             {isAdmin && (
-              <span className="rounded-md bg-blue-500/90 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+              <span className="rounded-md bg-gradient-to-r from-violet-500 to-cyan-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
                 Admin
               </span>
             )}
@@ -266,19 +266,19 @@ export default function Shell({
       {!collapsed && (
         <div className="min-w-0">
           <div className="truncate text-[13px] font-bold tracking-tight text-white">OtoFlow Pro</div>
-          <div className="text-[10px] text-slate-400">by NB Projects</div>
+          <div className="text-[10px] text-blue-200/70">by NB Projects</div>
         </div>
       )}
     </>
   );
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen">
       <RouteProgress />
 
       {/* SIDEBAR DESKTOP */}
       <aside
-        className={`app-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/5 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 transition-[width] duration-200 md:flex ${
+        className={`app-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/10 bg-sidebar shadow-[8px_0_40px_-20px_rgba(45,30,128,0.6)] transition-[width] duration-200 md:flex ${
           collapsed ? "w-[76px]" : "w-[264px]"
         }`}
       >
@@ -319,13 +319,13 @@ export default function Shell({
         aria-hidden={!drawerOpen}
       >
         <div
-          className={`app-drawer-overlay absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] transition-opacity duration-200 ${
+          className={`app-drawer-overlay absolute inset-0 bg-blue-950/60 backdrop-blur-sm transition-opacity duration-200 ${
             drawerOpen ? "opacity-100" : "opacity-0"
           }`}
           onClick={() => setDrawerOpen(false)}
         />
         <div
-          className={`app-drawer absolute inset-y-0 left-0 flex w-[276px] flex-col bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl transition-transform duration-250 ${
+          className={`app-drawer absolute inset-y-0 left-0 flex w-[276px] flex-col bg-sidebar shadow-2xl transition-transform duration-250 ${
             drawerOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -334,7 +334,7 @@ export default function Shell({
               {AppLogo}
               <div>
                 <div className="truncate text-[13px] font-bold text-white">OtoFlow Pro</div>
-                <div className="text-[10px] text-slate-400">by NB Projects</div>
+                <div className="text-[10px] text-blue-200/70">by NB Projects</div>
               </div>
             </Link>
             <button
@@ -351,7 +351,7 @@ export default function Shell({
       </div>
 
       <div className={`app-content transition-[padding] duration-200 ${collapsed ? "md:pl-[76px]" : "md:pl-[264px]"}`}>
-        <header className="app-header sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/85 px-4 backdrop-blur-md md:px-6">
+        <header className="app-header sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-white/70 bg-white/65 px-4 shadow-[0_10px_30px_-24px_rgba(86,54,242,0.5)] backdrop-blur-xl md:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             <button
               onClick={() => setDrawerOpen(true)}
@@ -368,21 +368,21 @@ export default function Shell({
                 <span className="text-slate-300">/</span>
                 <span className="truncate text-slate-500">{activeItem?.label ?? "Dashboard"}</span>
               </div>
-              <div className="truncate text-[15px] font-bold tracking-tight text-slate-800">
+              <div className="truncate text-[15px] font-extrabold tracking-tight text-slate-900">
                 {activeItem?.label ?? "Dashboard"}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="hidden rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200/70 lg:inline">
+            <span className="hidden rounded-full bg-white/70 px-3 py-1.5 text-[11px] font-medium text-blue-900/70 ring-1 ring-blue-200/60 lg:inline">
               {today}
             </span>
 
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-1 shadow-sm transition hover:border-slate-300 sm:pr-2.5"
+                className="flex items-center gap-2 rounded-full border border-blue-100 bg-white/80 py-1 pl-1 pr-1 shadow-sm transition hover:border-blue-300 hover:shadow-md hover:shadow-blue-500/10 sm:pr-2.5"
                 aria-label="Menu akun"
               >
                 {AppLogo}
@@ -394,7 +394,7 @@ export default function Shell({
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 z-20 mt-2 w-60 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 animate-pop-in">
+                  <div className="absolute right-0 z-20 mt-2 w-60 overflow-hidden rounded-3xl border border-white/80 bg-white/95 p-1.5 shadow-xl shadow-blue-900/15 backdrop-blur-xl animate-pop-in">
                     <div className="px-2.5 py-2">
                       <div className="truncate text-[13px] font-semibold text-slate-700">{username}</div>
                       <div className="truncate text-[11px] text-slate-400">{company}</div>
@@ -403,7 +403,7 @@ export default function Shell({
                     <Link
                       href="/pengaturan/perusahaan"
                       onClick={() => setMenuOpen(false)}
-                      className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium text-slate-600 transition hover:bg-slate-50"
+                      className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
                     >
                       <Building2 className="h-4 w-4 text-slate-400" />
                       Profil Perusahaan

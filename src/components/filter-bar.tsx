@@ -47,7 +47,7 @@ export function FilterBar({ children, className }: { children: React.ReactNode; 
   return (
     <div
       className={cn(
-        "mt-4 flex flex-wrap items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] backdrop-blur",
+        "mt-4 flex flex-wrap items-center gap-2.5 rounded-3xl border border-white/80 bg-white/75 p-2.5 shadow-[0_1px_2px_rgba(45,30,128,0.05)] ring-1 ring-blue-200/30 backdrop-blur-xl",
         className
       )}
     >
@@ -108,7 +108,7 @@ export function PeriodFilter({
             className={cn(
               "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
               active === p
-                ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                ? "bg-brand-btn text-white shadow-brand"
                 : "text-slate-500 hover:text-slate-700"
             )}
           >
@@ -147,7 +147,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
+        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 focus:outline-none"
       />
       {value && (
         <button
@@ -189,7 +189,7 @@ export function SelectFilter<T extends string>({
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         className={cn(
-          "h-10 appearance-none rounded-xl border border-slate-200 bg-white pr-8 text-sm font-medium text-slate-700 shadow-[0_1px_1px_rgba(15,23,42,0.03)] transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none",
+          "h-10 appearance-none rounded-xl border border-slate-200 bg-white pr-8 text-sm font-medium text-slate-700 shadow-[0_1px_1px_rgba(15,23,42,0.03)] transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 focus:outline-none",
           Icon ? "pl-9" : "pl-3"
         )}
       >

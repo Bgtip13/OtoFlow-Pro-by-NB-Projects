@@ -24,7 +24,7 @@ export default function DateInput({
         aria-label={ariaLabel}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-2 text-sm text-slate-700 shadow-[0_1px_1px_rgba(15,23,42,0.03)] transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none"
+        className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-2 text-sm text-slate-700 shadow-[0_1px_1px_rgba(15,23,42,0.03)] transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 focus:outline-none"
       />
     </div>
   );

@@ -19,13 +19,13 @@ export default function PageHeader({
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex min-w-0 items-center gap-3">
         {Icon && (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-600/25">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-white shadow-brand ring-1 ring-inset ring-white/30">
             <Icon className="h-5 w-5" />
           </div>
         )}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="truncate text-[22px] font-bold leading-tight tracking-tight text-slate-900">
+            <h1 className="truncate text-[22px] font-extrabold leading-tight tracking-tight text-slate-900">
               {title}
             </h1>
             {badge}

@@ -66,7 +66,7 @@ export default function RouteProgress() {
   return (
     <div className="app-progress pointer-events-none fixed inset-x-0 top-0 z-[120] h-[3px]">
       {active && (
-        <div className="route-progress-bar h-full bg-gradient-to-r from-blue-500 via-blue-400 to-cyan-400 shadow-[0_0_10px_rgba(59,130,246,0.7)]" />
+        <div className="route-progress-bar h-full bg-brand shadow-[0_0_12px_rgba(111,85,255,0.8)]" />
       )}
     </div>
   );

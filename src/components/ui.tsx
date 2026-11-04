@@ -26,7 +26,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_28px_-24px_rgba(15,23,42,0.25)]",
+        "rounded-3xl border border-white/80 bg-white/75 shadow-[0_1px_2px_rgba(45,30,128,0.05),0_18px_40px_-26px_rgba(86,54,242,0.35)] ring-1 ring-blue-200/30 backdrop-blur-xl",
         padded && "p-4 md:p-5",
         className
       )}
@@ -51,7 +51,7 @@ export function CardTitle({
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2.5">
         {Icon && (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-400/15 to-cyan-400/20 text-blue-600 ring-1 ring-inset ring-blue-200/60">
             <Icon className="h-4 w-4" />
           </span>
         )}
@@ -75,15 +75,15 @@ type ButtonSize = "sm" | "md";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-gradient-to-b from-blue-600 to-blue-700 text-white shadow-sm shadow-blue-700/25 hover:from-blue-500 hover:to-blue-600 focus-visible:ring-blue-500/30",
+    "bg-brand-btn text-white shadow-brand hover:brightness-110 hover:shadow-[0_14px_30px_-10px_rgba(75,53,255,0.65)] focus-visible:ring-blue-500/30",
   secondary:
-    "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 focus-visible:ring-blue-500/20",
+    "bg-blue-50/80 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 focus-visible:ring-blue-500/20",
   ghost:
-    "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 focus-visible:ring-slate-400/20",
+    "bg-white/80 text-slate-700 border border-slate-200 backdrop-blur hover:bg-white hover:border-blue-200 hover:text-blue-700 focus-visible:ring-blue-400/20",
   danger:
     "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300 focus-visible:ring-red-500/20",
   success:
-    "bg-gradient-to-b from-emerald-600 to-emerald-700 text-white shadow-sm shadow-emerald-700/25 hover:from-emerald-500 hover:to-emerald-600 focus-visible:ring-emerald-500/30",
+    "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-700/25 hover:brightness-110 focus-visible:ring-emerald-500/30",
 };
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
@@ -136,7 +136,7 @@ export function Button({
    Form
    ============================================================ */
 export const inputClass =
-  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-[0_1px_1px_rgba(15,23,42,0.03)] placeholder:text-slate-400 transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400";
+  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-[0_1px_1px_rgba(45,30,128,0.04)] placeholder:text-slate-400 transition hover:border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400";
 
 export function Input({ className, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...rest} className={cn(inputClass, className)} />;
@@ -209,9 +209,9 @@ const TONES: Record<
   },
   blue: {
     badge: "bg-blue-50 text-blue-700 ring-blue-200",
-    icon: "bg-blue-50 text-blue-600",
+    icon: "bg-gradient-to-br from-violet-400/15 to-blue-500/15 text-blue-600",
     value: "text-slate-900",
-    bar: "from-blue-400 to-blue-600",
+    bar: "from-violet-500 via-blue-600 to-cyan-400",
     ring: "group-hover:ring-blue-200",
   },
   green: {
@@ -285,7 +285,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-18px_rgba(15,23,42,0.35)]",
+        "group relative flex items-center gap-3 overflow-hidden rounded-3xl border border-white/80 bg-white/75 p-3.5 shadow-[0_1px_2px_rgba(45,30,128,0.05)] ring-1 ring-blue-200/30 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-18px_rgba(86,54,242,0.45)]",
         className
       )}
     >
@@ -355,16 +355,16 @@ export function DataTable<T>({
 }) {
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="overflow-hidden rounded-3xl border border-white/80 bg-white/80 shadow-[0_1px_2px_rgba(45,30,128,0.05),0_18px_40px_-28px_rgba(86,54,242,0.3)] ring-1 ring-blue-200/30 backdrop-blur-xl">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-[13px]">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/90">
+              <tr className="border-b border-blue-100 bg-gradient-to-r from-violet-50/90 via-blue-50/70 to-cyan-50/70">
                 {columns.map((c) => (
                   <th
                     key={c.key}
                     className={cn(
-                      "whitespace-nowrap px-3 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-slate-500",
+                      "whitespace-nowrap px-3 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-blue-900/70",
                       ALIGN[c.align ?? "left"],
                       c.headerClassName
                     )}
@@ -394,7 +394,7 @@ export function DataTable<T>({
                   <td colSpan={columns.length} className="px-3 py-14 text-center">
                     <div className="flex flex-col items-center gap-2.5 text-slate-400">
                       {EmptyIcon && (
-                        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-400/15 to-cyan-400/20 text-blue-500">
                           <EmptyIcon className="h-6 w-6" />
                         </span>
                       )}
@@ -409,7 +409,7 @@ export function DataTable<T>({
                 rows.map((row, i) => (
                   <tr
                     key={rowKey(row, i)}
-                    className="border-b border-slate-100 transition-colors last:border-0 even:bg-slate-50/40 hover:bg-blue-50/50"
+                    className="border-b border-slate-100 transition-colors last:border-0 even:bg-blue-50/25 hover:bg-blue-50/70"
                   >
                     {columns.map((c) => (
                       <td
@@ -509,7 +509,7 @@ export function PageModal({
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-blue-950/45 p-4 backdrop-blur-md animate-fade-in"
       onClick={onClose}
       role="presentation"
     >
@@ -518,7 +518,7 @@ export function PageModal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white shadow-2xl shadow-slate-900/25 animate-pop-in",
+          "flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/95 shadow-2xl shadow-blue-900/30 backdrop-blur-xl animate-pop-in",
           maxWidth
         )}
         onClick={(e) => e.stopPropagation()}
@@ -539,7 +539,7 @@ export function PageModal({
         </div>
         <div className="overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/80 px-5 py-3">
+          <div className="flex justify-end gap-2 border-t border-blue-100/70 bg-blue-50/40 px-5 py-3">
             {footer}
           </div>
         )}
